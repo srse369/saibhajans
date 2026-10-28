@@ -214,6 +214,21 @@ export async function verifySingerLoginCode(email: string, code: string): Promis
   return normalizeSingerUser(result.user, result.role);
 }
 
+export async function isReviewLoginAvailable(): Promise<boolean> {
+  const value = await request<unknown>('/auth/review-login/config');
+  return asRecord(value).enabled === true;
+}
+
+export async function verifyReviewLogin(email: string, password: string): Promise<SingerUser> {
+  const value = await request<unknown>('/auth/review-login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  const result = asRecord(value);
+  if (!result.user) throw new Error('The review sign-in service did not return a user.');
+  return normalizeSingerUser(result.user, result.role);
+}
+
 export async function logoutSingerSession(): Promise<void> {
   await request('/auth/logout', { method: 'POST' });
 }

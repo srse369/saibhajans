@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Mail } from 'lucide-react-native';
 import { colors } from '../lib/theme';
-import { requestSingerLoginCode, verifySingerLoginCode, type SingerUser } from '../lib/singers';
+import { isReviewLoginAvailable, requestSingerLoginCode, verifyReviewLogin, verifySingerLoginCode, type SingerUser } from '../lib/singers';
 
 interface OtpSignInPanelProps {
   description: string;
@@ -13,8 +13,25 @@ export function OtpSignInPanel({ description, onSignedIn }: OtpSignInPanelProps)
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
+  const [reviewLoginAvailable, setReviewLoginAvailable] = useState(false);
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reviewPassword, setReviewPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    void isReviewLoginAvailable()
+      .then((enabled) => {
+        if (isActive) setReviewLoginAvailable(enabled);
+      })
+      .catch(() => {
+        if (isActive) setReviewLoginAvailable(false);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   async function sendCode() {
     const normalizedEmail = email.trim().toLocaleLowerCase();
@@ -52,16 +69,66 @@ export function OtpSignInPanel({ description, onSignedIn }: OtpSignInPanelProps)
     }
   }
 
+  async function signInWithReviewCredentials() {
+    if (!email.trim() || !reviewPassword) {
+      setError('Enter the review account email and password.');
+      return;
+    }
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const user = await verifyReviewLogin(email.trim(), reviewPassword);
+      await onSignedIn(user);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to sign in with review credentials.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <View style={styles.body}>
       <View style={styles.titleRow}>
         <Mail color={colors.saffron} size={19} strokeWidth={1.8} />
-        <Text style={styles.title}>{codeSent ? 'Check your email' : 'Sign in to continue'}</Text>
+        <Text style={styles.title}>{reviewMode ? 'App Store review sign-in' : codeSent ? 'Check your email' : 'Sign in to continue'}</Text>
       </View>
       <Text style={styles.copy}>
-        {codeSent ? `Enter the six-digit code sent to ${email}.` : description}
+        {reviewMode
+          ? 'Use the review credentials supplied for this app.'
+          : codeSent ? `Enter the six-digit code sent to ${email}.` : description}
       </Text>
-      {codeSent ? (
+      {reviewMode ? (
+        <>
+          <TextInput
+            accessibilityLabel="App review account email"
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            onChangeText={setEmail}
+            placeholder="Review account email"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            value={email}
+          />
+          <TextInput
+            accessibilityLabel="App review password"
+            autoCapitalize="none"
+            autoComplete="password"
+            onChangeText={setReviewPassword}
+            placeholder="Password"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            style={styles.input}
+            value={reviewPassword}
+          />
+          <Pressable accessibilityRole="button" disabled={isSubmitting} onPress={() => void signInWithReviewCredentials()} style={styles.primaryButton}>
+            {isSubmitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryLabel}>Sign in</Text>}
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setReviewMode(false); setReviewPassword(''); setError(null); }} style={styles.secondaryButton}>
+            <Text style={styles.secondaryLabel}>Use email code instead</Text>
+          </Pressable>
+        </>
+      ) : codeSent ? (
         <>
           <TextInput
             accessibilityLabel="Six-digit email code"
@@ -99,6 +166,11 @@ export function OtpSignInPanel({ description, onSignedIn }: OtpSignInPanelProps)
           </Pressable>
         </>
       )}
+      {!reviewMode && !codeSent && reviewLoginAvailable ? (
+        <Pressable accessibilityRole="button" onPress={() => { setReviewMode(true); setError(null); }} style={styles.secondaryButton}>
+          <Text style={styles.secondaryLabel}>App Store review access</Text>
+        </Pressable>
+      ) : null}
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     </View>
   );

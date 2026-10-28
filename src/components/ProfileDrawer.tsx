@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Modal,
   Pressable,
@@ -15,6 +16,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowRight, BadgeCheck, Building2, CircleUserRound, LogOut, ShieldCheck, X } from 'lucide-react-native';
 import { OtpSignInPanel } from './OtpSignInPanel';
 import { useAuth } from '../contexts/AuthContext';
+import { useLiveSession } from '../contexts/LiveSessionContext';
 import { fetchAccountCenters, type AccountCenter } from '../lib/singers';
 import { colors } from '../lib/theme';
 
@@ -46,6 +48,7 @@ export function ProfileButton() {
 function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
   const { width } = useWindowDimensions();
   const { user, setUser, signOut } = useAuth();
+  const { clearSession, isLoading: isLiveSessionLoading } = useLiveSession();
   const [centers, setCenters] = useState<AccountCenter[]>([]);
   const [centersForUser, setCentersForUser] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -111,15 +114,18 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
   async function handleSignOut() {
     setIsSigningOut(true);
     setLogoutError(null);
-    try {
-      await signOut();
-      setCenters([]);
+    const [queueResult, logoutResult] = await Promise.allSettled([clearSession(), signOut()]);
+    setCenters([]);
+    if (queueResult.status === 'rejected' || logoutResult.status === 'rejected') {
+      const message = queueResult.status === 'rejected'
+        ? 'You were signed out, but the Live queue could not be cleared from this device.'
+        : 'You were signed out locally, but the server logout failed.';
+      setLogoutError(message);
+      Alert.alert('Sign out issue', message);
+    } else {
       closeDrawer();
-    } catch (cause) {
-      setLogoutError(cause instanceof Error ? cause.message : 'Unable to sign out.');
-    } finally {
-      setIsSigningOut(false);
     }
+    setIsSigningOut(false);
   }
 
   const roleName = user?.role === 'admin' ? 'Admin' : user?.role === 'editor' ? 'Editor' : 'Viewer';
@@ -213,9 +219,9 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
                     </Pressable>
                   ) : null}
 
-                  <Pressable accessibilityRole="button" disabled={isSigningOut} onPress={() => void handleSignOut()} style={styles.signOutButton}>
-                    {isSigningOut ? <ActivityIndicator color={colors.error} /> : <LogOut color={colors.error} size={17} />}
-                    <Text style={styles.signOutLabel}>Sign out</Text>
+                  <Pressable accessibilityRole="button" disabled={isSigningOut || isLiveSessionLoading} onPress={() => void handleSignOut()} style={styles.signOutButton}>
+                    {isSigningOut || isLiveSessionLoading ? <ActivityIndicator color={colors.error} /> : <LogOut color={colors.error} size={17} />}
+                    <Text style={styles.signOutLabel}>{isLiveSessionLoading ? 'Preparing sign out…' : 'Sign out'}</Text>
                   </Pressable>
                   {logoutError ? <Text accessibilityRole="alert" style={styles.errorText}>{logoutError}</Text> : null}
                 </>
