@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProfileButton } from '../../components/ProfileDrawer';
-import { useSongs } from '../../contexts/SongsContext';
+import { useFavoriteSongs } from '../../contexts/SongsContext';
 import { fetchSong, type Song } from '../../lib/songs';
 import { colors } from '../../lib/theme';
 
@@ -27,13 +27,26 @@ function formatTime(seconds: number) {
 
 export default function SongDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { savedSongIds, toggleSavedSong } = useSongs();
+  const { savedSongIds, toggleSavedSong } = useFavoriteSongs();
   const [song, setSong] = useState<Song | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [isFavoritePending, setIsFavoritePending] = useState(false);
   const player = useAudioPlayer(null, { updateInterval: 500 });
   const playback = useAudioPlayerStatus(player);
   const [audioError, setAudioError] = useState<string | null>(null);
   const isSaved = song ? savedSongIds.includes(song.id) : false;
+
+  async function toggleFavorite() {
+    if (!song) return;
+    setIsFavoritePending(true);
+    try {
+      await toggleSavedSong(song.id);
+    } catch (cause) {
+      setDetailError(cause instanceof Error ? cause.message : 'Unable to update favorite.');
+    } finally {
+      setIsFavoritePending(false);
+    }
+  }
 
   useEffect(() => {
     let isActive = true;
@@ -112,11 +125,15 @@ export default function SongDetailScreen() {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={isSaved ? 'Remove from saved songs' : 'Save song'}
-            onPress={() => toggleSavedSong(song.id)}
+            accessibilityLabel={isSaved ? 'Remove from favorites' : 'Favorite song'}
+            accessibilityState={{ disabled: isFavoritePending }}
+            disabled={isFavoritePending}
+            onPress={() => void toggleFavorite()}
             style={styles.iconButton}
           >
-            <Heart color={isSaved ? colors.rose : colors.ink} fill={isSaved ? colors.rose : 'transparent'} size={20} strokeWidth={1.8} />
+            {isFavoritePending
+              ? <ActivityIndicator color={colors.rose} size="small" />
+              : <Heart color={isSaved ? colors.rose : colors.ink} fill={isSaved ? colors.rose : 'transparent'} size={20} strokeWidth={1.8} />}
           </Pressable>
           <ProfileButton />
         </View>

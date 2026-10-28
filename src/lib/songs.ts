@@ -1,6 +1,7 @@
 export interface Song {
   id: string;
   name: string;
+  createdBy?: string | null;
   externalSourceUrl?: string;
   lyrics?: string | null;
   meaning?: string | null;
@@ -18,6 +19,25 @@ export interface Song {
   refLadies?: string | null;
 }
 
+export interface SongInput {
+  name: string;
+  externalSourceUrl?: string;
+  lyrics?: string;
+  meaning?: string;
+  language?: string;
+  deity?: string;
+  tempo?: string;
+  beat?: string;
+  raga?: string;
+  level?: string;
+  songTags?: string;
+  audioLink?: string;
+  videoLink?: string;
+  goldenVoice?: boolean;
+  refGents?: string;
+  refLadies?: string;
+}
+
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
 export const apiBaseUrl = (configuredApiUrl || 'https://saisongs.org/api').replace(/\/$/, '');
@@ -33,13 +53,19 @@ export async function fetchSongs(signal?: AbortSignal): Promise<Song[]> {
     throw new Error('The song service returned an unexpected response.');
   }
 
-  return songs.filter(
+  const validSongs = songs.filter(
     (song): song is Song =>
       typeof song === 'object' &&
       song !== null &&
       typeof song.id === 'string' &&
       typeof song.name === 'string',
   );
+
+  return validSongs.map((song) => {
+    const row = song as unknown as Record<string, unknown>;
+    const createdBy = row.createdBy ?? row.created_by ?? row.CREATED_BY;
+    return { ...song, createdBy: typeof createdBy === 'string' ? createdBy : null };
+  });
 }
 
 export async function fetchSong(songId: string, signal?: AbortSignal): Promise<Song> {
@@ -57,5 +83,43 @@ export async function fetchSong(songId: string, signal?: AbortSignal): Promise<S
     throw new Error('The song service returned an unexpected response.');
   }
 
-  return songRecord as unknown as Song;
+  return {
+    ...songRecord,
+    createdBy: typeof (songRecord.createdBy ?? songRecord.created_by) === 'string'
+      ? String(songRecord.createdBy ?? songRecord.created_by)
+      : null,
+  } as unknown as Song;
+}
+
+async function mutateSong(path: string, method: 'POST' | 'PUT' | 'DELETE', body?: SongInput): Promise<unknown> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    method,
+    credentials: 'include',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const row = typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : {};
+    throw new Error(typeof row.message === 'string' ? row.message : typeof row.error === 'string' ? row.error : `The song service returned ${response.status}.`);
+  }
+  return payload;
+}
+
+export async function createSong(input: SongInput): Promise<Song | null> {
+  const result = await mutateSong('/songs', 'POST', input);
+  if (typeof result === 'object' && result !== null && typeof (result as Record<string, unknown>).id === 'string') {
+    return result as Song;
+  }
+  const songs = await fetchSongs();
+  return songs.find((song) => song.name === input.name) || null;
+}
+
+export async function updateSong(songId: string, input: SongInput): Promise<Song> {
+  await mutateSong(`/songs/${encodeURIComponent(songId)}`, 'PUT', input);
+  return fetchSong(songId);
+}
+
+export async function deleteSong(songId: string): Promise<void> {
+  await mutateSong(`/songs/${encodeURIComponent(songId)}`, 'DELETE');
 }

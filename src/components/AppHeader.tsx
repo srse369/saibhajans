@@ -35,7 +35,7 @@ export function AppHeader() {
         <View style={styles.actions}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={isSavedScreen ? 'Back to songs' : 'Open saved songs'}
+            accessibilityLabel={isSavedScreen ? 'Back to songs' : 'Open favorite bhajans'}
             onPress={openSavedSongs}
             style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
           >

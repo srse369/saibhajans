@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Check, Music2, Plus } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Check, Music2 } from 'lucide-react-native';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,15 +12,32 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLiveSession } from '../../contexts/LiveSessionContext';
 import { colors, coverColors } from '../../lib/theme';
+import { singerNameColor } from '../../lib/singerColors';
+import { keepProgressVisible } from '../../lib/progress';
 import { fetchSingers, fetchSingerSongPitches, type Singer, type SingerSongPitch } from '../../lib/singers';
 
 export default function SingerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items: liveItems, addSong, removeSong } = useLiveSession();
+  const { items: liveItems, isLoading: isLiveLoading, addSong, removeSong } = useLiveSession();
   const [singer, setSinger] = useState<Singer | null>(null);
   const [songs, setSongs] = useState<SingerSongPitch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingLiveKey, setPendingLiveKey] = useState<string | null>(null);
+  const liveSongKeys = useMemo(() => new Set(liveItems.map((item) => `${item.songId}|${item.singerId || ''}`)), [liveItems]);
+
+  async function toggleLive(item: SingerSongPitch, itemKey: string, isInLiveSession: boolean) {
+    setPendingLiveKey(itemKey);
+    try {
+      await keepProgressVisible(isInLiveSession
+        ? removeSong(item.songId, item.singerId)
+        : addSong({ id: item.songId, name: item.songName || 'Untitled bhajan' }, { singerId: item.singerId, singerName: singer?.name || item.singerName, singerGender: singer?.gender || item.singerGender, pitch: item.pitch }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to update Live queue.');
+    } finally {
+      setPendingLiveKey(null);
+    }
+  }
 
   useEffect(() => {
     let isActive = true;
@@ -66,7 +83,7 @@ export default function SingerDetailScreen() {
               <Text style={styles.avatarInitial}>{singer.name.trim().charAt(0).toLocaleUpperCase()}</Text>
             </View>
             <Text style={styles.eyebrow}>SINGER</Text>
-            <Text style={styles.singerName}>{singer.name}</Text>
+            <Text style={[styles.singerName, { color: singerNameColor(singer.gender) }]}>{singer.name}</Text>
             <Text style={styles.singerMeta}>
               {songs.length} {songs.length === 1 ? 'song' : 'songs'}{singer.gender ? `  ·  ${singer.gender}` : ''}
             </Text>
@@ -77,7 +94,9 @@ export default function SingerDetailScreen() {
         data={songs}
         keyExtractor={(item) => item.id || `${item.songId}-${item.singerId}`}
         renderItem={({ item, index }) => {
-          const isInLiveSession = liveItems.some((liveItem) => liveItem.songId === item.songId && liveItem.singerId === item.singerId);
+          const itemKey = item.id || `${item.songId}|${item.singerId || ''}`;
+          const isInLiveSession = liveSongKeys.has(`${item.songId}|${item.singerId || ''}`);
+          const isLivePending = pendingLiveKey === itemKey;
           return (
             <View style={styles.songRow}>
               <Pressable
@@ -97,13 +116,15 @@ export default function SingerDetailScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={isInLiveSession ? `Remove ${item.songName || 'song'} from Live` : `Add ${item.songName || 'song'} to Live`}
-                accessibilityState={{ selected: isInLiveSession }}
-                onPress={() => isInLiveSession
-                  ? removeSong(item.songId, item.singerId)
-                  : addSong({ id: item.songId, name: item.songName || 'Untitled bhajan' }, { singerId: item.singerId, singerName: singer?.name || item.singerName, pitch: item.pitch })}
+                accessibilityState={{ selected: isInLiveSession, disabled: pendingLiveKey !== null || isLiveLoading }}
+                disabled={pendingLiveKey !== null || isLiveLoading}
+                onPress={() => void toggleLive(item, itemKey, isInLiveSession)}
                 style={[styles.liveButton, isInLiveSession && styles.liveButtonSelected]}
               >
-                {isInLiveSession ? <Check color={colors.white} size={17} /> : <Plus color={colors.forest} size={18} />}
+                {isLivePending
+                  ? <ActivityIndicator color={isInLiveSession ? colors.white : colors.forest} size="small" />
+                  : isInLiveSession ? <Check color={colors.white} size={17} /> : <ArrowRight color={colors.forest} size={18} />}
+                <Text style={[styles.actionHint, isInLiveSession && styles.selectedActionHint]}>Live</Text>
               </Pressable>
             </View>
           );
@@ -145,10 +166,12 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#E6C08B', fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
   singerName: { color: colors.white, fontFamily: 'Georgia', fontSize: 27, lineHeight: 33, textAlign: 'center', marginTop: 7 },
   singerMeta: { color: '#C3D2C8', fontSize: 12, marginTop: 6 },
-  songRow: { minHeight: 74, marginHorizontal: 16, paddingRight: 4, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 8, overflow: 'hidden' },
-  songMain: { flex: 1, minHeight: 72, paddingLeft: 12, paddingRight: 8, flexDirection: 'row', alignItems: 'center' },
-  liveButton: { width: 40, height: 66, alignItems: 'center', justifyContent: 'center' },
+  songRow: { minHeight: 78, marginHorizontal: 16, paddingRight: 4, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 8, overflow: 'hidden' },
+  songMain: { flex: 1, minHeight: 76, paddingLeft: 12, paddingRight: 8, flexDirection: 'row', alignItems: 'center' },
+  liveButton: { width: 48, height: 72, alignItems: 'center', justifyContent: 'center', gap: 2 },
   liveButtonSelected: { backgroundColor: colors.forest },
+  actionHint: { color: colors.forest, fontSize: 8, lineHeight: 10, fontWeight: '600', textAlign: 'center' },
+  selectedActionHint: { color: colors.white },
   pressed: { opacity: 0.72 },
   songMark: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   songCopy: { flex: 1 },

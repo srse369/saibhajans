@@ -4,8 +4,12 @@ export interface PresentationItem {
   id: string;
   songId: string;
   songName: string;
+  singerId?: string;
   singerName?: string;
+  singerGender?: string;
   pitch?: string;
+  language?: string | null;
+  deity?: string | null;
   sequenceOrder: number;
 }
 
@@ -13,6 +17,8 @@ export interface PresentationSession {
   id: string;
   name: string;
   description?: string;
+  centerIds?: number[];
+  createdBy?: string;
   items: PresentationItem[];
 }
 
@@ -99,8 +105,12 @@ function normalizeItem(value: unknown, index: number): PresentationItem {
   const id = row.id ?? row.ID;
   const songId = row.songId ?? row.song_id ?? row.SONG_ID;
   const songName = row.songName ?? row.song_name ?? row.SONG_NAME;
+  const singerId = row.singerId ?? row.singer_id ?? row.SINGER_ID;
   const singerName = row.singerName ?? row.singer_name ?? row.SINGER_NAME;
+  const singerGender = row.singerGender ?? row.singer_gender ?? row.SINGER_GENDER;
   const pitch = row.pitch ?? row.PITCH;
+  const language = row.songLanguage ?? row.song_language ?? row.SONG_LANGUAGE ?? row.language ?? row.LANGUAGE;
+  const deity = row.songDeity ?? row.song_deity ?? row.SONG_DEITY ?? row.deity ?? row.DEITY;
   const sequenceOrder = row.sequenceOrder ?? row.sequence_order ?? row.SEQUENCE_ORDER;
 
   if (typeof songId !== 'string') {
@@ -111,8 +121,12 @@ function normalizeItem(value: unknown, index: number): PresentationItem {
     id: typeof id === 'string' ? id : `${songId}-${index}`,
     songId,
     songName: typeof songName === 'string' ? songName : 'Bhajan',
+    singerId: typeof singerId === 'string' ? singerId : undefined,
     singerName: typeof singerName === 'string' ? singerName : undefined,
+    singerGender: typeof singerGender === 'string' ? singerGender : undefined,
     pitch: pitch == null ? undefined : String(pitch),
+    language: typeof language === 'string' ? language : undefined,
+    deity: typeof deity === 'string' ? deity : undefined,
     sequenceOrder: typeof sequenceOrder === 'number' ? sequenceOrder : Number(sequenceOrder) || index,
   };
 }
@@ -122,6 +136,8 @@ function normalizeSession(value: unknown): PresentationSession {
   const id = row.id ?? row.ID;
   const name = row.name ?? row.NAME;
   const description = row.description ?? row.DESCRIPTION;
+  const centerIds = row.centerIds ?? row.center_ids ?? row.CENTER_IDS;
+  const createdBy = row.createdBy ?? row.created_by ?? row.CREATED_BY;
   const items = row.items ?? row.ITEMS;
 
   if (typeof id !== 'string' || typeof name !== 'string') {
@@ -132,6 +148,8 @@ function normalizeSession(value: unknown): PresentationSession {
     id,
     name,
     description: typeof description === 'string' ? description : undefined,
+    centerIds: Array.isArray(centerIds) ? centerIds.map(Number).filter(Number.isFinite) : [],
+    createdBy: typeof createdBy === 'string' ? createdBy : undefined,
     items: Array.isArray(items)
       ? items.map(normalizeItem).sort((first, second) => first.sequenceOrder - second.sequenceOrder)
       : [],
@@ -195,6 +213,10 @@ export async function fetchPresentationSessions(): Promise<PresentationSession[]
 export async function fetchPresentationSession(sessionId: string): Promise<PresentationSession> {
   const result = await fetchSessionData(`/sessions/${encodeURIComponent(sessionId)}`);
   return normalizeSession(result);
+}
+
+export async function deletePresentationSession(sessionId: string): Promise<void> {
+  await sendSessionData(`/sessions/${encodeURIComponent(sessionId)}`, 'DELETE');
 }
 
 export async function fetchPresentationTemplates(): Promise<PresentationTemplate[]> {

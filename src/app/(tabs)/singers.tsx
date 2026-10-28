@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { Alert, ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ArrowRight, Pencil, Plus, Search, Trash2, UsersRound } from 'lucide-react-native';
+import { Pencil, Plus, Search, Trash2, UsersRound } from 'lucide-react-native';
 import { colors } from '../../lib/theme';
+import { singerNameColor } from '../../lib/singerColors';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   createSingerProfile,
@@ -43,7 +44,7 @@ export default function SingersScreen() {
       const [loadedSingers, loadedPitches, centers] = await Promise.all([
         fetchSingers(),
         fetchSingerSongPitches(),
-        user?.role === 'admin' ? fetchAccountCenters() : user?.role === 'editor' ? fetchEditableCenters() : Promise.resolve([]),
+        user?.role === 'editor' ? fetchEditableCenters() : fetchAccountCenters(),
       ]);
       setSingers(loadedSingers);
       setPitches(loadedPitches);
@@ -100,11 +101,7 @@ export default function SingersScreen() {
   useEffect(() => {
     if (!userId) return;
     let isActive = true;
-    const centersRequest = user?.role === 'admin'
-      ? fetchAccountCenters()
-      : user?.role === 'editor'
-        ? fetchEditableCenters()
-        : Promise.resolve([]);
+    const centersRequest = user?.role === 'editor' ? fetchEditableCenters() : fetchAccountCenters();
     void Promise.all([fetchSingers(), fetchSingerSongPitches(), centersRequest])
       .then(([loadedSingers, loadedPitches, centers]) => {
         if (!isActive) return;
@@ -187,6 +184,9 @@ export default function SingersScreen() {
           keyExtractor={(singer) => singer.id}
           renderItem={({ item }) => {
             const songCount = pitchCounts.get(item.id) || 0;
+            const centerNames = item.centerIds
+              .map((centerId) => managementCenters.find((center) => center.id === centerId)?.name)
+              .filter((name): name is string => Boolean(name));
             const canManageSinger = isAdmin || (user?.role === 'editor' && item.centerIds.some((centerId) => user.editorFor.includes(centerId)));
             return (
               <View style={styles.singerRow}>
@@ -200,20 +200,21 @@ export default function SingersScreen() {
                     <Text style={styles.avatarInitial}>{item.name.trim().charAt(0).toLocaleUpperCase()}</Text>
                   </View>
                   <View style={styles.singerCopy}>
-                    <Text numberOfLines={1} style={styles.singerName}>{item.name}</Text>
-                    <Text style={styles.singerMeta}>
-                      {songCount} {songCount === 1 ? 'song' : 'songs'}{item.gender ? `  ·  ${item.gender}` : ''}
+                    <Text numberOfLines={1} style={[styles.singerName, { color: singerNameColor(item.gender) }]}>{item.name}</Text>
+                    <Text numberOfLines={2} style={styles.singerMeta}>
+                      {[`${songCount} ${songCount === 1 ? 'song' : 'songs'}`, item.gender, centerNames.join(', ') || null].filter(Boolean).join('  ·  ')}
                     </Text>
                   </View>
-                  <ArrowRight color={colors.muted} size={18} strokeWidth={1.8} />
                 </Pressable>
                 {canManageSinger ? (
                   <View style={styles.rowActions}>
                     <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`} onPress={() => openEditSinger(item)} style={styles.rowAction}>
                       <Pencil color={colors.forest} size={16} />
+                      <Text style={styles.actionHint}>Edit</Text>
                     </Pressable>
                     <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${item.name}`} onPress={() => confirmDeleteSinger(item)} disabled={mutatingSingerId === item.id} style={styles.rowAction}>
                       {mutatingSingerId === item.id ? <ActivityIndicator color={colors.rose} size="small" /> : <Trash2 color={colors.rose} size={17} />}
+                      <Text style={styles.deleteHint}>Delete</Text>
                     </Pressable>
                   </View>
                 ) : null}
@@ -266,10 +267,12 @@ const styles = StyleSheet.create({
   addButton: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, borderRadius: 7, backgroundColor: colors.forest },
   addLabel: { color: colors.white, fontSize: 11, fontWeight: '700' },
   listContent: { flexGrow: 1, backgroundColor: colors.paper, paddingHorizontal: 16, paddingBottom: 16 },
-  singerRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center' },
-  singerMain: { flex: 1, minHeight: 56, paddingLeft: 0, paddingRight: 6, flexDirection: 'row', alignItems: 'center' },
+  singerRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center' },
+  singerMain: { flex: 1, minHeight: 60, paddingLeft: 0, paddingRight: 6, flexDirection: 'row', alignItems: 'center' },
   rowActions: { flexDirection: 'row', alignItems: 'center' },
-  rowAction: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
+  rowAction: { width: 40, height: 54, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  actionHint: { color: colors.forest, fontSize: 8, lineHeight: 10, fontWeight: '600', textAlign: 'center' },
+  deleteHint: { color: colors.rose, fontSize: 8, lineHeight: 10, fontWeight: '600', textAlign: 'center' },
   rowPressed: { opacity: 0.72 },
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.sage, alignItems: 'center', justifyContent: 'center', marginRight: 9 },
   avatarInitial: { color: colors.forest, fontFamily: 'Georgia', fontSize: 16 },

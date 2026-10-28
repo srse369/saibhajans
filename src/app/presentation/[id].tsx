@@ -29,6 +29,7 @@ import {
 } from '../../lib/presentation';
 import { fetchSong, type Song } from '../../lib/songs';
 import { colors } from '../../lib/theme';
+import { singerNameColor } from '../../lib/singerColors';
 
 function rgbaFromHex(value: string, opacity: number) {
   const match = value.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
@@ -186,6 +187,7 @@ export default function SessionPresentationScreen() {
       songId: item.songId,
       songName: item.songName,
         singerName: item.singerName,
+      singerGender: item.singerGender,
         pitch: item.pitch,
       sequenceOrder,
     })),
@@ -495,7 +497,7 @@ export default function SessionPresentationScreen() {
                 {currentItem?.singerName || currentItem?.pitch ? (
                   <View style={[styles.templateTextBox, bottomLeftBox, styles.bottomText, { zIndex: (bottomLeftConfig?.zIndex ?? 23) + 1 }]}>
                     <Text style={bottomLeftTextStyle}>
-                      Current: {currentItem.singerName}
+                      Current: {currentItem.singerName ? <Text style={{ color: singerNameColor(currentItem.singerGender) }}>{currentItem.singerName}</Text> : null}
                       {currentItem.singerName && currentItem.pitch ? ' - ' : ''}
                       {currentItem.pitch}
                     </Text>
@@ -505,7 +507,7 @@ export default function SessionPresentationScreen() {
                   <View style={[styles.templateTextBox, bottomRightBox, styles.bottomText, { zIndex: (bottomRightConfig?.zIndex ?? 24) + 1 }]}>
                     <Text style={[bottomRightTextStyle, { textAlign: bottomRightConfig?.textAlign || 'right' }]}>
                       Next: {nextItem.songName}
-                      {nextItem.singerName ? ` - ${nextItem.singerName}` : ''}
+                      {nextItem.singerName ? <Text style={{ color: singerNameColor(nextItem.singerGender) }}> - {nextItem.singerName}</Text> : null}
                       {nextItem.pitch ? ` - ${nextItem.pitch}` : ''}
                     </Text>
                   </View>

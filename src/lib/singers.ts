@@ -26,6 +26,7 @@ export interface SingerSongPitch {
   id?: string;
   singerId: string;
   singerName?: string;
+  singerGender?: string;
   songId: string;
   songName?: string;
   pitch: string;
@@ -171,6 +172,7 @@ function normalizePitch(value: unknown): SingerSongPitch {
   const pitch = row.pitch ?? row.PITCH;
   const id = row.id ?? row.ID;
   const singerName = row.singerName ?? row.singer_name ?? row.SINGER_NAME;
+  const singerGender = row.singerGender ?? row.singer_gender ?? row.SINGER_GENDER;
   const songName = row.songName ?? row.song_name ?? row.SONG_NAME;
 
   if (typeof singerId !== 'string' || typeof songId !== 'string' || pitch == null) {
@@ -181,6 +183,7 @@ function normalizePitch(value: unknown): SingerSongPitch {
     id: typeof id === 'string' ? id : undefined,
     singerId,
     singerName: typeof singerName === 'string' ? singerName : undefined,
+    singerGender: typeof singerGender === 'string' ? singerGender : undefined,
     songId,
     songName: typeof songName === 'string' ? songName : undefined,
     pitch: String(pitch),

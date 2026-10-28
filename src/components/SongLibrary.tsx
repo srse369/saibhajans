@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react';
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   Pressable,
@@ -11,90 +12,258 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { BookOpen, Check, Heart, Music2, Plus, Search, WifiOff } from 'lucide-react-native';
+import { ArrowRight, Check, Heart, Music2, Pencil, Plus, Search, Trash2, WifiOff } from 'lucide-react-native';
+import { useAuth } from '../contexts/AuthContext';
 import { useSongs } from '../contexts/SongsContext';
 import { useLiveSession } from '../contexts/LiveSessionContext';
 import { coverColors, colors } from '../lib/theme';
-import type { Song } from '../lib/songs';
+import { keepProgressVisible } from '../lib/progress';
+import { createSong, deleteSong, updateSong, type Song, type SongInput } from '../lib/songs';
+import { SongEditorModal } from './SongEditorModal';
 
 interface SongLibraryProps {
   savedOnly?: boolean;
 }
 
+const EMPTY_SONG_IDS = new Set<string>();
+
 function normalizeLanguage(language: string) {
   return language.trim().toLocaleLowerCase();
+}
+
+function parseLanguages(language: string | null | undefined) {
+  return language
+    ? language.split(/[,/]/).map(normalizeLanguage).filter(Boolean)
+    : [];
 }
 
 function formatLabel(value: string) {
   return value.replace(/\b\w/g, (letter) => letter.toLocaleUpperCase());
 }
 
+interface SongRowProps {
+  item: Song;
+  index: number;
+  isSaved: boolean;
+  isInLiveSession: boolean;
+  canManageSongs: boolean;
+  canDeleteSong: boolean;
+  isDeleting: boolean;
+  onToggleSavedSong: (songId: string) => Promise<void>;
+  addSong: (
+    song: Pick<Song, 'id' | 'name' | 'language' | 'deity'>,
+    details?: { singerId?: string; singerName?: string; pitch?: string },
+  ) => Promise<void>;
+  removeSong: (songId: string) => Promise<void>;
+  isLiveLoading: boolean;
+  onEditSong: (song: Song) => void;
+  onDeleteSong: (song: Song) => void;
+}
+
+const SongRow = memo(function SongRow({
+  item,
+  index,
+  isSaved,
+  isInLiveSession,
+  canManageSongs,
+  canDeleteSong,
+  isDeleting,
+  onToggleSavedSong,
+  addSong,
+  removeSong,
+  isLiveLoading,
+  onEditSong,
+  onDeleteSong,
+}: SongRowProps) {
+  const [isFavoritePending, setIsFavoritePending] = useState(false);
+  const [isLivePending, setIsLivePending] = useState(false);
+  const subtitle = [item.deity, item.language, item.raga, item.tempo]
+    .filter(Boolean)
+    .map((value) => formatLabel(value as string))
+    .join(' · ');
+
+  async function toggleFavorite() {
+    setIsFavoritePending(true);
+    try {
+      await onToggleSavedSong(item.id);
+    } catch (cause) {
+      Alert.alert('Unable to update favorite', cause instanceof Error ? cause.message : 'Please try again.');
+    } finally {
+      setIsFavoritePending(false);
+    }
+  }
+
+  async function toggleLive() {
+    setIsLivePending(true);
+    try {
+      await keepProgressVisible(isInLiveSession ? removeSong(item.id) : addSong(item));
+    } catch (cause) {
+      Alert.alert('Unable to update Live queue', cause instanceof Error ? cause.message : 'Please try again.');
+    } finally {
+      setIsLivePending(false);
+    }
+  }
+
+  return (
+    <View style={styles.songRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${item.name}`}
+        onPress={() => router.push({ pathname: '/song/[id]', params: { id: item.id } })}
+        style={({ pressed }) => [styles.songMain, pressed && styles.pressed]}
+      >
+        <View style={[styles.songMark, { backgroundColor: coverColors[index % coverColors.length] }]}>
+          <Music2 color={colors.forestDeep} size={21} strokeWidth={1.7} />
+        </View>
+        <View style={styles.songCopy}>
+          <Text numberOfLines={1} style={styles.songTitle}>{item.name}</Text>
+            <Text numberOfLines={2} style={styles.songSubtitle}>{subtitle || 'Sai bhajan'}</Text>
+        </View>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={isSaved ? `Remove ${item.name} from favorites` : `Favorite ${item.name}`}
+        accessibilityState={{ disabled: isFavoritePending }}
+        disabled={isFavoritePending}
+        onPress={() => void toggleFavorite()}
+        hitSlop={10}
+        style={styles.saveButton}
+      >
+        {isFavoritePending
+          ? <ActivityIndicator color={colors.rose} size="small" />
+          : <Heart color={isSaved ? colors.rose : colors.muted} fill={isSaved ? colors.rose : 'transparent'} size={19} strokeWidth={1.8} />}
+        <Text style={styles.actionHint}>Favorite</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={isInLiveSession ? `Remove ${item.name} from Live` : `Add ${item.name} to Live`}
+        accessibilityState={{ selected: isInLiveSession, disabled: isLivePending || isLiveLoading }}
+        disabled={isLivePending || isLiveLoading}
+        onPress={() => void toggleLive()}
+        hitSlop={8}
+        style={[styles.liveButton, isInLiveSession && styles.liveButtonSelected]}
+      >
+        {isLivePending
+          ? <ActivityIndicator color={isInLiveSession ? colors.white : colors.forest} size="small" />
+          : isInLiveSession
+          ? <Check color={colors.white} size={18} strokeWidth={2.2} />
+          : <ArrowRight color={colors.forest} size={19} strokeWidth={1.9} />}
+        <Text style={[styles.actionHint, isInLiveSession && styles.selectedActionHint]}>Live</Text>
+      </Pressable>
+      {canManageSongs ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${item.name}`}
+          onPress={() => onEditSong(item)}
+          hitSlop={8}
+          style={styles.manageButton}
+        >
+          <Pencil color={colors.forest} size={16} />
+          <Text style={styles.actionHint}>Edit</Text>
+        </Pressable>
+      ) : null}
+      {canDeleteSong ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${item.name}`}
+          accessibilityState={{ disabled: isDeleting }}
+          disabled={isDeleting}
+          onPress={() => onDeleteSong(item)}
+          hitSlop={8}
+          style={styles.manageButton}
+        >
+          {isDeleting ? <ActivityIndicator color={colors.rose} size="small" /> : <Trash2 color={colors.rose} size={17} />}
+          <Text style={styles.deleteHint}>Delete</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+});
+
 export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
+  const { user } = useAuth();
   const { songs, savedSongIds, isLoading, error, refreshSongs, toggleSavedSong } = useSongs();
-  const { items: liveItems, addSong, removeSong } = useLiveSession();
+  const { items: liveItems, isLoading: isLiveLoading, addSong, removeSong } = useLiveSession();
+  const favoriteSongIds = useMemo(() => new Set(savedSongIds), [savedSongIds]);
+  const liveSongIds = useMemo(() => new Set(liveItems.map((item) => item.songId)), [liveItems]);
   const [query, setQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('all');
-  const savedSongs = savedOnly ? songs.filter((song) => savedSongIds.includes(song.id)) : songs;
-  const languages = [
-    'all',
-    ...new Set(savedSongs.map((song) => song.language).filter(Boolean).map((language) => normalizeLanguage(language as string))),
-  ];
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const visibleSongs = savedSongs.filter((song) => {
-    const matchesLanguage = selectedLanguage === 'all' || normalizeLanguage(song.language || '') === selectedLanguage;
-    const searchableText = [song.name, song.language, song.deity, song.lyrics, song.meaning]
+  const deferredLanguage = useDeferredValue(selectedLanguage);
+  const [isEditorVisible, setIsEditorVisible] = useState(false);
+  const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [deletingSongId, setDeletingSongId] = useState<string | null>(null);
+  const canManageSongs = user?.role === 'editor' || user?.role === 'admin';
+  const favoriteIdsForFilter = savedOnly ? favoriteSongIds : EMPTY_SONG_IDS;
+  const savedSongs = useMemo(
+    () => savedOnly ? songs.filter((song) => favoriteIdsForFilter.has(song.id)) : songs,
+    [songs, savedOnly, favoriteIdsForFilter],
+  );
+  const searchableSongs = useMemo(() => savedSongs.map((song) => ({
+    song,
+    languages: parseLanguages(song.language),
+    searchText: [song.name, song.language, song.deity, song.lyrics, song.meaning]
       .filter(Boolean)
       .join(' ')
-      .toLocaleLowerCase();
-    return matchesLanguage && searchableText.includes(normalizedQuery);
-  });
+      .toLocaleLowerCase(),
+  })), [savedSongs]);
+  const languages = useMemo(() => [
+    'all',
+    ...new Set(searchableSongs.flatMap(({ languages: songLanguages }) => songLanguages)),
+  ], [searchableSongs]);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const isFilteringLanguages = selectedLanguage !== deferredLanguage;
+  const visibleSongs = useMemo(() => searchableSongs.filter(({ languages: songLanguages, searchText }) => {
+    const matchesLanguage = deferredLanguage === 'all' || songLanguages.includes(deferredLanguage);
+    if (!matchesLanguage) return false;
+    return searchText.includes(normalizedQuery);
+  }).map(({ song }) => song), [searchableSongs, deferredLanguage, normalizedQuery]);
 
-  function renderSong({ item, index }: { item: Song; index: number }) {
-    const isSaved = savedSongIds.includes(item.id);
-    const isInLiveSession = liveItems.some((liveItem) => liveItem.songId === item.id);
-    const subtitle = [item.deity, item.language].filter(Boolean).map((value) => formatLabel(value as string)).join(' · ');
+  const openSongEditor = useCallback((song: Song | null) => {
+    setEditingSong(song);
+    setIsEditorVisible(true);
+  }, []);
 
-    return (
-      <View style={styles.songRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${item.name}`}
-          onPress={() => router.push({ pathname: '/song/[id]', params: { id: item.id } })}
-          style={({ pressed }) => [styles.songMain, pressed && styles.pressed]}
-        >
-          <View style={[styles.songMark, { backgroundColor: coverColors[index % coverColors.length] }]}>
-            <Music2 color={colors.forestDeep} size={21} strokeWidth={1.7} />
-          </View>
-          <View style={styles.songCopy}>
-            <Text numberOfLines={1} style={styles.songTitle}>{item.name}</Text>
-            <Text numberOfLines={1} style={styles.songSubtitle}>{subtitle || 'Sai bhajan'}</Text>
-          </View>
-          <BookOpen color={colors.muted} size={18} strokeWidth={1.8} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isSaved ? `Remove ${item.name} from saved songs` : `Save ${item.name}`}
-          onPress={() => toggleSavedSong(item.id)}
-          hitSlop={10}
-          style={styles.saveButton}
-        >
-          <Heart color={isSaved ? colors.rose : colors.muted} fill={isSaved ? colors.rose : 'transparent'} size={19} strokeWidth={1.8} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isInLiveSession ? `Remove ${item.name} from Live` : `Add ${item.name} to Live`}
-          accessibilityState={{ selected: isInLiveSession }}
-          onPress={() => isInLiveSession ? removeSong(item.id) : addSong(item)}
-          hitSlop={8}
-          style={[styles.liveButton, isInLiveSession && styles.liveButtonSelected]}
-        >
-          {isInLiveSession
-            ? <Check color={colors.white} size={18} strokeWidth={2.2} />
-            : <Plus color={colors.forest} size={19} strokeWidth={1.9} />}
-        </Pressable>
-      </View>
-    );
+  async function saveSong(input: SongInput) {
+    if (editingSong) await updateSong(editingSong.id, input);
+    else await createSong(input);
+    setIsEditorVisible(false);
+    await refreshSongs();
   }
+
+  const confirmDeleteSong = useCallback((song: Song) => {
+    Alert.alert('Delete bhajan?', `Delete ${song.name}? Songs used in pitches or presentations cannot be deleted.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          setDeletingSongId(song.id);
+          void deleteSong(song.id)
+            .then(() => refreshSongs())
+            .catch((cause: unknown) => Alert.alert('Unable to delete bhajan', cause instanceof Error ? cause.message : 'Please try again.'))
+            .finally(() => setDeletingSongId(null));
+        },
+      },
+    ]);
+  }, [refreshSongs]);
+
+  const renderSong = useCallback(({ item, index }: { item: Song; index: number }) => (
+    <SongRow
+      item={item}
+      index={index}
+      isSaved={favoriteSongIds.has(item.id)}
+      isInLiveSession={liveSongIds.has(item.id)}
+      canManageSongs={canManageSongs}
+      canDeleteSong={user?.role === 'admin' || (user?.role === 'editor' && item.createdBy === user.email)}
+      isDeleting={deletingSongId === item.id}
+      onToggleSavedSong={toggleSavedSong}
+      addSong={addSong}
+      removeSong={removeSong}
+      isLiveLoading={isLiveLoading}
+      onEditSong={openSongEditor}
+      onDeleteSong={confirmDeleteSong}
+    />
+  ), [favoriteSongIds, liveSongIds, isLiveLoading, canManageSongs, user, deletingSongId, toggleSavedSong, addSong, removeSong, openSongEditor, confirmDeleteSong]);
 
   function renderEmptyState() {
     if (isLoading) {
@@ -123,8 +292,8 @@ export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
       return (
         <View style={styles.emptyState}>
           <Heart color={colors.saffron} size={25} strokeWidth={1.7} />
-          <Text style={styles.emptyTitle}>Your saved songs will live here</Text>
-          <Text style={styles.emptyBody}>Tap the heart beside a bhajan to keep it close.</Text>
+          <Text style={styles.emptyTitle}>Your favorite bhajans will live here</Text>
+          <Text style={styles.emptyBody}>Tap the heart beside a bhajan to add it to your favorites.</Text>
         </View>
       );
     }
@@ -143,10 +312,10 @@ export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
       <View>
         <View style={styles.masthead}>
           <Text style={styles.eyebrow}>{savedOnly ? 'YOUR COLLECTION' : 'SING WITH DEVOTION'}</Text>
-          <Text style={styles.heading}>{savedOnly ? 'Saved bhajans' : 'Find a bhajan'}</Text>
+          <Text style={styles.heading}>{savedOnly ? 'Favorite Bhajans' : 'Find a bhajan'}</Text>
           <Text style={styles.intro}>
             {savedOnly
-              ? `${savedSongs.length} ${savedSongs.length === 1 ? 'song' : 'songs'} kept close.`
+              ? `${savedSongs.length} favorite ${savedSongs.length === 1 ? 'bhajan' : 'bhajans'}.`
               : `${songs.length ? `${songs.length} songs` : 'Songs and lyrics'} for your daily practice.`}
           </Text>
       </View>
@@ -176,13 +345,20 @@ export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
                 <Text style={[styles.filterLabel, selected && styles.filterLabelSelected]}>
                   {language === 'all' ? 'All' : formatLabel(language)}
                 </Text>
+                {selected && isFilteringLanguages ? <ActivityIndicator color={colors.forest} size="small" /> : null}
               </Pressable>
             );
           })}
         </ScrollView>
         <View style={styles.sectionHeading}>
-          <Text style={styles.sectionTitle}>{savedOnly ? 'Kept for later' : 'The songbook'}</Text>
+          <Text style={styles.sectionTitle}>{savedOnly ? 'Favorites' : 'The songbook'}</Text>
           <Text style={styles.songCount}>{visibleSongs.length} SONGS</Text>
+          {canManageSongs && !savedOnly ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Add bhajan" onPress={() => openSongEditor(null)} style={styles.addButton}>
+              <Plus color={colors.white} size={15} />
+              <Text style={styles.addLabel}>Add</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
       <FlatList
@@ -198,6 +374,14 @@ export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
         }
         showsVerticalScrollIndicator={false}
       />
+      {canManageSongs && isEditorVisible ? (
+        <SongEditorModal
+          visible
+          song={editingSong}
+          onClose={() => setIsEditorVisible(false)}
+          onSubmit={saveSong}
+        />
+      ) : null}
     </View>
   );
 }
@@ -220,16 +404,22 @@ const styles = StyleSheet.create({
   sectionHeading: { paddingHorizontal: 16, paddingBottom: 6, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   sectionTitle: { color: colors.ink, fontSize: 15, fontFamily: 'Georgia' },
   songCount: { color: colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  songRow: { flexDirection: 'row', alignItems: 'center', minHeight: 58 },
-  songMain: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingLeft: 2, paddingRight: 6 },
+  songRow: { flexDirection: 'row', alignItems: 'center', minHeight: 64 },
+  songMain: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 62, paddingLeft: 2, paddingRight: 6 },
   pressed: { opacity: 0.72 },
   songMark: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 9 },
   songCopy: { flex: 1, marginRight: 6 },
   songTitle: { color: colors.ink, fontSize: 13, fontWeight: '600', marginBottom: 2 },
-  songSubtitle: { color: colors.muted, fontSize: 10 },
-  saveButton: { width: 38, height: 56, alignItems: 'center', justifyContent: 'center' },
-  liveButton: { width: 36, height: 56, alignItems: 'center', justifyContent: 'center' },
+  songSubtitle: { color: colors.muted, fontSize: 10, lineHeight: 13 },
+  saveButton: { width: 42, height: 60, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  liveButton: { width: 42, height: 60, alignItems: 'center', justifyContent: 'center', gap: 2 },
   liveButtonSelected: { backgroundColor: colors.forest },
+  manageButton: { width: 38, height: 52, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  actionHint: { color: colors.muted, fontSize: 8, lineHeight: 10, fontWeight: '600', textAlign: 'center' },
+  selectedActionHint: { color: colors.white },
+  deleteHint: { color: colors.rose, fontSize: 8, lineHeight: 10, fontWeight: '600', textAlign: 'center' },
+  addButton: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, borderRadius: 6, backgroundColor: colors.forest },
+  addLabel: { color: colors.white, fontSize: 10, fontWeight: '700' },
   rowGap: { height: 1, backgroundColor: colors.line },
   emptyState: { alignItems: 'center', paddingHorizontal: 30, paddingTop: 40, paddingBottom: 56 },
   emptyTitle: { color: colors.ink, fontFamily: 'Georgia', fontSize: 18, textAlign: 'center', marginTop: 14 },

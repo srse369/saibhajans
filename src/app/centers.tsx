@@ -22,6 +22,7 @@ export default function CentersScreen() {
   const [editorIds, setEditorIds] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingCenterId, setDeletingCenterId] = useState<number | null>(null);
 
   async function loadData(refresh = false) {
     if (refresh) setIsRefreshing(true);
@@ -98,12 +99,14 @@ export default function CentersScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: () => {
+          setDeletingCenterId(center.id);
           void deleteAccountCenter(center.id)
             .then(() => {
               setCenters((current) => current.filter((item) => item.id !== center.id));
               setError(null);
             })
-            .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Unable to delete center.'));
+            .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Unable to delete center.'))
+            .finally(() => setDeletingCenterId(null));
         },
       },
     ]);
@@ -168,8 +171,8 @@ export default function CentersScreen() {
             <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`} onPress={() => openForm(item)} style={styles.rowButton}>
               <Pencil color={colors.forest} size={16} />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${item.name}`} onPress={() => confirmDelete(item)} style={styles.rowButton}>
-              <Trash2 color={colors.rose} size={17} />
+            <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${item.name}`} accessibilityState={{ disabled: deletingCenterId === item.id }} disabled={deletingCenterId === item.id} onPress={() => confirmDelete(item)} style={styles.rowButton}>
+              {deletingCenterId === item.id ? <ActivityIndicator color={colors.rose} size="small" /> : <Trash2 color={colors.rose} size={17} />}
             </Pressable>
           </View>
         )}

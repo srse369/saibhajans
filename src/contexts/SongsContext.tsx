@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
   useContext,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PropsWithChildren,
@@ -11,16 +13,20 @@ import { fetchSongs, type Song } from '../lib/songs';
 
 const SAVED_SONGS_KEY = 'sai-bhajans:saved-song-ids';
 
-interface SongsContextValue {
+interface SongCatalogValue {
   songs: Song[];
-  savedSongIds: string[];
   isLoading: boolean;
   error: string | null;
   refreshSongs: () => Promise<void>;
-  toggleSavedSong: (songId: string) => void;
 }
 
-const SongsContext = createContext<SongsContextValue | null>(null);
+interface FavoriteSongsValue {
+  savedSongIds: string[];
+  toggleSavedSong: (songId: string) => Promise<void>;
+}
+
+const SongCatalogContext = createContext<SongCatalogValue | null>(null);
+const FavoriteSongsContext = createContext<FavoriteSongsValue | null>(null);
 
 export function SongsProvider({ children }: PropsWithChildren) {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -29,7 +35,7 @@ export function SongsProvider({ children }: PropsWithChildren) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function refreshSongs() {
+  const refreshSongs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -39,9 +45,9 @@ export function SongsProvider({ children }: PropsWithChildren) {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
 
-  function toggleSavedSong(songId: string) {
+  const toggleSavedSong = useCallback(async (songId: string) => {
     const currentIds = savedSongIdsRef.current;
     const nextIds = currentIds.includes(songId)
       ? currentIds.filter((id) => id !== songId)
@@ -49,8 +55,8 @@ export function SongsProvider({ children }: PropsWithChildren) {
 
     savedSongIdsRef.current = nextIds;
     setSavedSongIds(nextIds);
-    void AsyncStorage.setItem(SAVED_SONGS_KEY, JSON.stringify(nextIds));
-  }
+    await AsyncStorage.setItem(SAVED_SONGS_KEY, JSON.stringify(nextIds));
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -82,19 +88,40 @@ export function SongsProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
+  const catalogValue = useMemo(
+    () => ({ songs, isLoading, error, refreshSongs }),
+    [songs, isLoading, error, refreshSongs],
+  );
+  const favoriteValue = useMemo(
+    () => ({ savedSongIds, toggleSavedSong }),
+    [savedSongIds, toggleSavedSong],
+  );
+
   return (
-    <SongsContext.Provider
-      value={{ songs, savedSongIds, isLoading, error, refreshSongs, toggleSavedSong }}
-    >
-      {children}
-    </SongsContext.Provider>
+    <SongCatalogContext.Provider value={catalogValue}>
+      <FavoriteSongsContext.Provider value={favoriteValue}>
+        {children}
+      </FavoriteSongsContext.Provider>
+    </SongCatalogContext.Provider>
   );
 }
 
-export function useSongs() {
-  const context = useContext(SongsContext);
+export function useSongCatalog() {
+  const context = useContext(SongCatalogContext);
   if (!context) {
-    throw new Error('useSongs must be used inside SongsProvider.');
+    throw new Error('useSongCatalog must be used inside SongsProvider.');
   }
   return context;
+}
+
+export function useFavoriteSongs() {
+  const context = useContext(FavoriteSongsContext);
+  if (!context) {
+    throw new Error('useFavoriteSongs must be used inside SongsProvider.');
+  }
+  return context;
+}
+
+export function useSongs() {
+  return { ...useSongCatalog(), ...useFavoriteSongs() };
 }

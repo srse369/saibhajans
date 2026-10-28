@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Play, Save, Trash2, X } from 'lucide-react-native';
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   Modal,
@@ -15,6 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { liveSessionItemKey, useLiveSession } from '../../contexts/LiveSessionContext';
 import { savePresentationSession } from '../../lib/presentation';
 import { colors } from '../../lib/theme';
+import { singerNameColor } from '../../lib/singerColors';
 
 export default function LiveScreen() {
   const { user } = useAuth();
@@ -23,7 +25,31 @@ export default function LiveScreen() {
   const [sessionName, setSessionName] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingItemAction, setPendingItemAction] = useState<string | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
   const canSaveSession = user?.role === 'editor' || user?.role === 'admin';
+
+  async function runItemAction(actionKey: string, action: () => Promise<void>) {
+    setPendingItemAction(actionKey);
+    try {
+      await action();
+    } catch (cause) {
+      Alert.alert('Unable to update Live queue', cause instanceof Error ? cause.message : 'Please try again.');
+    } finally {
+      setPendingItemAction(null);
+    }
+  }
+
+  async function clearLiveSession() {
+    setIsClearing(true);
+    try {
+      await clearSession();
+    } catch (cause) {
+      Alert.alert('Unable to clear Live queue', cause instanceof Error ? cause.message : 'Please try again.');
+    } finally {
+      setIsClearing(false);
+    }
+  }
 
   async function saveSession() {
     if (!sessionName.trim()) {
@@ -55,9 +81,9 @@ export default function LiveScreen() {
       <View style={styles.sectionHeading}>
         <Text style={styles.sectionTitle}>Session queue</Text>
         {items.length ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Clear Live session" onPress={clearSession} style={styles.clearButton}>
-            <Trash2 color={colors.rose} size={15} />
-            <Text style={styles.clearLabel}>Clear</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Clear Live session" disabled={isClearing} onPress={() => void clearLiveSession()} style={styles.clearButton}>
+            {isClearing ? <ActivityIndicator color={colors.rose} size="small" /> : <Trash2 color={colors.rose} size={15} />}
+            <Text style={styles.clearLabel}>{isClearing ? 'Clearing' : 'Clear'}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -66,45 +92,70 @@ export default function LiveScreen() {
         keyExtractor={liveSessionItemKey}
         contentContainerStyle={[styles.listContent, items.length === 0 && styles.emptyListContent]}
         ItemSeparatorComponent={() => <View style={styles.rowGap} />}
-        renderItem={({ item, index }) => (
-          <View style={styles.songRow}>
+        renderItem={({ item, index }) => {
+          const itemKey = liveSessionItemKey(item);
+          const upKey = `${itemKey}:up`;
+          const downKey = `${itemKey}:down`;
+          const removeKey = `${itemKey}:remove`;
+          const subtitleParts = [
+            item.singerName ? { value: item.singerName, color: singerNameColor(item.singerGender) } : null,
+            item.pitch ? { value: `Pitch ${item.pitch}` } : null,
+            item.deity ? { value: item.deity } : null,
+            item.language ? { value: item.language } : null,
+          ].filter((part): part is { value: string; color?: string } => part !== null);
+          return (
+            <View style={styles.songRow}>
             <Text style={styles.position}>{String(index + 1).padStart(2, '0')}</Text>
             <View style={styles.songCopy}>
               <Text numberOfLines={2} style={styles.songTitle}>{item.songName}</Text>
-              <Text numberOfLines={1} style={styles.songSubtitle}>{[item.singerName, item.pitch ? `Pitch ${item.pitch}` : undefined, item.deity, item.language].filter(Boolean).join(' · ') || 'Sai bhajan'}</Text>
+              <Text numberOfLines={1} style={styles.songSubtitle}>
+                {subtitleParts.length
+                  ? subtitleParts.map((part, partIndex) => (
+                    <Text key={`${part.value}-${partIndex}`} style={part.color ? { color: part.color } : undefined}>
+                      {partIndex ? ' · ' : ''}{part.value}
+                    </Text>
+                  ))
+                  : 'Sai bhajan'}
+              </Text>
             </View>
             <View style={styles.rowActions}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Move ${item.songName} up`}
-                accessibilityState={{ disabled: index === 0 }}
-                disabled={index === 0}
-                onPress={() => moveSong(liveSessionItemKey(item), -1)}
-                style={[styles.iconButton, index === 0 && styles.disabledButton]}
+                accessibilityState={{ disabled: index === 0 || pendingItemAction !== null }}
+                disabled={index === 0 || pendingItemAction !== null}
+                onPress={() => void runItemAction(upKey, () => moveSong(itemKey, -1))}
+                style={[styles.iconButton, (index === 0 || pendingItemAction !== null) && styles.disabledButton]}
               >
-                <ArrowUp color={colors.ink} size={17} />
+                {pendingItemAction === upKey ? <ActivityIndicator color={colors.ink} size="small" /> : <ArrowUp color={colors.ink} size={17} />}
+                <Text style={styles.rowActionLabel}>Up</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Move ${item.songName} down`}
-                accessibilityState={{ disabled: index === items.length - 1 }}
-                disabled={index === items.length - 1}
-                onPress={() => moveSong(liveSessionItemKey(item), 1)}
-                style={[styles.iconButton, index === items.length - 1 && styles.disabledButton]}
+                accessibilityState={{ disabled: index === items.length - 1 || pendingItemAction !== null }}
+                disabled={index === items.length - 1 || pendingItemAction !== null}
+                onPress={() => void runItemAction(downKey, () => moveSong(itemKey, 1))}
+                style={[styles.iconButton, (index === items.length - 1 || pendingItemAction !== null) && styles.disabledButton]}
               >
-                <ArrowDown color={colors.ink} size={17} />
+                {pendingItemAction === downKey ? <ActivityIndicator color={colors.ink} size="small" /> : <ArrowDown color={colors.ink} size={17} />}
+                <Text style={styles.rowActionLabel}>Down</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${item.songName}${item.singerName ? ` for ${item.singerName}` : ''} from Live`}
-                onPress={() => removeItem(liveSessionItemKey(item))}
+                accessibilityState={{ disabled: pendingItemAction !== null }}
+                disabled={pendingItemAction !== null}
+                onPress={() => void runItemAction(removeKey, () => removeItem(itemKey))}
                 style={styles.iconButton}
               >
-                <Trash2 color={colors.rose} size={17} />
+                {pendingItemAction === removeKey ? <ActivityIndicator color={colors.rose} size="small" /> : <Trash2 color={colors.rose} size={17} />}
+                <Text style={styles.deleteActionLabel}>Remove</Text>
               </Pressable>
             </View>
-          </View>
-        )}
+            </View>
+          );
+        }}
         ListEmptyComponent={(
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>{isLoading ? 'Loading your queue' : 'Your Live queue is empty'}</Text>
@@ -129,7 +180,7 @@ export default function LiveScreen() {
               }}
               style={[styles.saveButton, !items.length && styles.presentButtonDisabled]}
             >
-              <Save color={colors.forest} size={17} />
+              <Save color={colors.white} size={14} />
               <Text style={styles.saveLabel}>Save</Text>
             </Pressable>
           ) : null}
@@ -140,7 +191,7 @@ export default function LiveScreen() {
             onPress={() => router.push({ pathname: '/presentation/[id]', params: { id: 'live' } })}
             style={[styles.presentButton, !canSaveSession && styles.presentButtonFull, !items.length && styles.presentButtonDisabled]}
           >
-            <Play color={colors.white} fill={colors.white} size={16} />
+            <Play color={colors.white} fill={colors.white} size={14} />
             <Text style={styles.presentLabel}>Present {items.length ? `(${items.length})` : ''}</Text>
           </Pressable>
         </View>
@@ -213,7 +264,9 @@ const styles = StyleSheet.create({
   songTitle: { color: colors.ink, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   songSubtitle: { color: colors.muted, fontSize: 9, marginTop: 2 },
   rowActions: { flexDirection: 'row', alignItems: 'center' },
-  iconButton: { width: 30, height: 38, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { width: 38, height: 50, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  rowActionLabel: { color: colors.muted, fontSize: 8, lineHeight: 10, fontWeight: '600' },
+  deleteActionLabel: { color: colors.rose, fontSize: 8, lineHeight: 10, fontWeight: '600' },
   disabledButton: { opacity: 0.32 },
   emptyState: { alignItems: 'center', padding: 28 },
   emptyTitle: { color: colors.ink, fontFamily: 'Georgia', fontSize: 18, textAlign: 'center' },
@@ -222,12 +275,12 @@ const styles = StyleSheet.create({
   browseLabel: { color: colors.forestDeep, fontSize: 13, fontWeight: '600' },
   footer: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.surface },
   footerActions: { flexDirection: 'row', gap: 9 },
-  saveButton: { minWidth: 106, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 8, backgroundColor: colors.sage },
-  saveLabel: { color: colors.forest, fontSize: 13, fontWeight: '700' },
-  presentButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 8, backgroundColor: colors.forest },
+  saveButton: { flex: 1, minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 8, borderRadius: 6, backgroundColor: colors.forest },
+  saveLabel: { color: colors.white, fontSize: 10, fontWeight: '700' },
+  presentButton: { flex: 1, minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 8, borderRadius: 6, backgroundColor: colors.forest },
   presentButtonFull: { flex: 1 },
   presentButtonDisabled: { opacity: 0.4 },
-  presentLabel: { color: colors.white, fontSize: 14, fontWeight: '700' },
+  presentLabel: { color: colors.white, fontSize: 10, fontWeight: '700' },
   accessHint: { color: colors.muted, fontSize: 10, textAlign: 'center', marginTop: 6 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(16, 29, 23, 0.48)' },
   modalScrim: { ...StyleSheet.absoluteFill },

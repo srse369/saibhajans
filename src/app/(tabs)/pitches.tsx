@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { Alert, ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
-import { AudioLines, Check, Pencil, Plus, Search, Trash2 } from 'lucide-react-native';
+import { ArrowRight, AudioLines, Check, Pencil, Plus, Search, Trash2 } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLiveSession } from '../../contexts/LiveSessionContext';
-import { useSongs } from '../../contexts/SongsContext';
+import { useSongCatalog } from '../../contexts/SongsContext';
 import { colors, coverColors } from '../../lib/theme';
+import { keepProgressVisible } from '../../lib/progress';
+import { singerNameColor } from '../../lib/singerColors';
 import {
   createSingerSongPitch,
   deleteSingerSongPitch,
@@ -17,10 +19,112 @@ import {
 } from '../../lib/singers';
 import { PitchEditorModal } from '../../components/PitchEditorModal';
 
+const EMPTY_CENTER_IDS: number[] = [];
+
+interface PitchRowProps {
+  item: SingerSongPitch;
+  index: number;
+  singerGender?: string;
+  isInLiveSession: boolean;
+  isLiveLoading: boolean;
+  showManagementActions: boolean;
+  isMutating: boolean;
+  addSong: (song: { id: string; name: string }, details: { singerId: string; singerName?: string; singerGender?: string; pitch: string }) => Promise<void>;
+  removeSong: (songId: string, singerId?: string) => Promise<void>;
+  onEdit: (item: SingerSongPitch) => void;
+  onDelete: (item: SingerSongPitch) => void;
+}
+
+const PitchRow = memo(function PitchRow({
+  item,
+  index,
+  singerGender,
+  isInLiveSession,
+  isLiveLoading,
+  showManagementActions,
+  isMutating,
+  addSong,
+  removeSong,
+  onEdit,
+  onDelete,
+}: PitchRowProps) {
+  const [isLivePending, setIsLivePending] = useState(false);
+
+  async function toggleLive() {
+    setIsLivePending(true);
+    try {
+      await keepProgressVisible(isInLiveSession
+        ? removeSong(item.songId, item.singerId)
+        : addSong({ id: item.songId, name: item.songName || 'Untitled bhajan' }, { singerId: item.singerId, singerName: item.singerName, singerGender, pitch: item.pitch }));
+    } catch (cause) {
+      Alert.alert('Unable to update Live queue', cause instanceof Error ? cause.message : 'Please try again.');
+    } finally {
+      setIsLivePending(false);
+    }
+  }
+
+  return (
+    <View style={styles.pitchRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${item.songName || 'song'}, sung by ${item.singerName || 'singer'}, pitch ${item.pitch}`}
+        onPress={() => router.push({ pathname: '/song/[id]', params: { id: item.songId } })}
+        style={({ pressed }) => [styles.pitchMain, pressed && styles.rowPressed]}
+      >
+        <View style={[styles.songMark, { backgroundColor: coverColors[index % coverColors.length] }]}>
+          <AudioLines color={colors.forestDeep} size={19} strokeWidth={1.7} />
+        </View>
+        <View style={styles.pitchCopy}>
+          <Text numberOfLines={1} style={styles.songName}>{item.songName || 'Untitled bhajan'}</Text>
+            <Text numberOfLines={1} style={[styles.singerName, { color: singerNameColor(singerGender) }]}>{item.singerName || 'Singer'}</Text>
+        </View>
+        <View style={styles.pitchBadge}><Text style={styles.pitchLabel}>{item.pitch}</Text></View>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={isInLiveSession ? `Remove ${item.songName || 'song'} for ${item.singerName || 'singer'} from Live` : `Add ${item.songName || 'song'} for ${item.singerName || 'singer'} to Live`}
+        accessibilityState={{ selected: isInLiveSession, disabled: isLivePending || isLiveLoading }}
+        disabled={isLivePending || isLiveLoading}
+        onPress={() => void toggleLive()}
+        style={[styles.liveButton, isInLiveSession && styles.liveButtonSelected]}
+      >
+        {isLivePending
+          ? <ActivityIndicator color={isInLiveSession ? colors.white : colors.forest} size="small" />
+          : isInLiveSession ? <Check color={colors.white} size={17} /> : <ArrowRight color={colors.forest} size={18} />}
+        <Text style={[styles.actionHint, isInLiveSession && styles.selectedActionHint]}>Live</Text>
+      </Pressable>
+      {showManagementActions ? (
+        <View style={styles.pitchManagementActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Edit pitch for ${item.songName || 'song'}`}
+            disabled={!item.id || isMutating}
+            onPress={() => onEdit(item)}
+            style={[styles.managementButton, (!item.id || isMutating) && styles.disabledAction]}
+          >
+            <Pencil color={colors.forest} size={16} />
+            <Text style={styles.actionHint}>Edit</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Delete pitch for ${item.songName || 'song'}`}
+            disabled={!item.id || isMutating}
+            onPress={() => onDelete(item)}
+            style={[styles.managementButton, (!item.id || isMutating) && styles.disabledAction]}
+          >
+            {isMutating ? <ActivityIndicator color={colors.rose} size="small" /> : <Trash2 color={colors.rose} size={17} />}
+            <Text style={styles.deleteHint}>Delete</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+});
+
 export default function PitchesScreen() {
   const { user, isLoading: isAuthLoading } = useAuth();
-  const { items: liveItems, addSong, removeSong } = useLiveSession();
-  const { songs } = useSongs();
+  const { items: liveItems, isLoading: isLiveLoading, addSong, removeSong } = useLiveSession();
+  const { songs } = useSongCatalog();
   const [pitches, setPitches] = useState<SingerSongPitch[]>([]);
   const [singers, setSingers] = useState<Singer[]>([]);
   const [query, setQuery] = useState('');
@@ -37,10 +141,10 @@ export default function PitchesScreen() {
     setIsPitchFormVisible(true);
   }
 
-  function openEditPitch(item: SingerSongPitch) {
+  const openEditPitch = useCallback((item: SingerSongPitch) => {
     setEditingPitch(item);
     setIsPitchFormVisible(true);
-  }
+  }, []);
 
   async function savePitch(input: { songId: string; singerId: string; pitch: string }, existingPitchId?: string) {
     const pitchId = existingPitchId || editingPitch?.id;
@@ -53,7 +157,7 @@ export default function PitchesScreen() {
     await loadPitches();
   }
 
-  function confirmDeletePitch(item: SingerSongPitch) {
+  const confirmDeletePitch = useCallback((item: SingerSongPitch) => {
     if (!item.id) return;
     Alert.alert(
       'Delete pitch?',
@@ -76,7 +180,7 @@ export default function PitchesScreen() {
         },
       ],
     );
-  }
+  }, []);
 
   async function loadPitches() {
     setIsRefreshing(true);
@@ -123,29 +227,47 @@ export default function PitchesScreen() {
 
   const isAdmin = user?.role === 'admin';
   const canManageAllPitches = isAdmin || user?.role === 'editor';
-  const accessibleCenterIds = isAdmin
-    ? []
-    : user?.role === 'editor'
-      ? user.editorFor
-      : user?.centerIds || [];
-  const allPitchSingerIds = new Set(
+  const accessibleCenterIds = useMemo(
+    () => user?.role === 'editor' ? user.editorFor : user?.centerIds || EMPTY_CENTER_IDS,
+    [user],
+  );
+  const allPitchSingerIds = useMemo(() => new Set(
     isAdmin
       ? singers.map((singer) => singer.id)
       : singers.filter((singer) => singer.centerIds.some((centerId) => accessibleCenterIds.includes(centerId))).map((singer) => singer.id),
-  );
-  const scopedPitches = pitchScope === 'mine'
+  ), [isAdmin, singers, accessibleCenterIds]);
+    const singersById = useMemo(() => new Map(singers.map((singer) => [singer.id, singer])), [singers]);
+  const scopedPitches = useMemo(() => pitchScope === 'mine'
     ? pitches.filter((item) => item.singerId === user?.id)
     : isAdmin
       ? pitches
-      : pitches.filter((item) => allPitchSingerIds.has(item.singerId));
+      : pitches.filter((item) => allPitchSingerIds.has(item.singerId)),
+  [pitchScope, pitches, user?.id, isAdmin, allPitchSingerIds]);
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const visiblePitches = scopedPitches.filter((item) =>
+  const visiblePitches = useMemo(() => scopedPitches.filter((item) =>
     [item.songName, item.singerName, item.pitch]
       .filter(Boolean)
       .join(' ')
       .toLocaleLowerCase()
       .includes(normalizedQuery),
-  );
+  ), [scopedPitches, normalizedQuery]);
+  const livePitchKeys = useMemo(() => new Set(liveItems.map((item) => `${item.songId}|${item.singerId || ''}`)), [liveItems]);
+  const showManagementActions = pitchScope === 'mine' || canManageAllPitches;
+  const renderPitch = useCallback(({ item, index }: { item: SingerSongPitch; index: number }) => (
+    <PitchRow
+      item={item}
+      index={index}
+      singerGender={singersById.get(item.singerId)?.gender}
+      isInLiveSession={livePitchKeys.has(`${item.songId}|${item.singerId}`)}
+      isLiveLoading={isLiveLoading}
+      showManagementActions={showManagementActions}
+      isMutating={mutatingPitchId === item.id}
+      addSong={addSong}
+      removeSong={removeSong}
+      onEdit={openEditPitch}
+      onDelete={confirmDeletePitch}
+    />
+  ), [livePitchKeys, isLiveLoading, showManagementActions, mutatingPitchId, addSong, removeSong, openEditPitch, confirmDeletePitch, singersById]);
 
   if (isAuthLoading || (user && loadedForUser !== user.id)) {
     return (
@@ -221,61 +343,7 @@ export default function PitchesScreen() {
         style={styles.pitchList}
         data={visiblePitches}
         keyExtractor={(item) => item.id || `${item.songId}-${item.singerId}`}
-        renderItem={({ item, index }) => {
-          const isInLiveSession = liveItems.some((liveItem) => liveItem.songId === item.songId && liveItem.singerId === item.singerId);
-          return (
-            <View style={styles.pitchRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${item.songName || 'song'}, sung by ${item.singerName || 'singer'}, pitch ${item.pitch}`}
-                onPress={() => router.push({ pathname: '/song/[id]', params: { id: item.songId } })}
-                style={({ pressed }) => [styles.pitchMain, pressed && styles.rowPressed]}
-              >
-                <View style={[styles.songMark, { backgroundColor: coverColors[index % coverColors.length] }]}>
-                  <AudioLines color={colors.forestDeep} size={19} strokeWidth={1.7} />
-                </View>
-                <View style={styles.pitchCopy}>
-                  <Text numberOfLines={1} style={styles.songName}>{item.songName || 'Untitled bhajan'}</Text>
-                  <Text numberOfLines={1} style={styles.singerName}>{item.singerName || 'Singer'}</Text>
-                </View>
-                <View style={styles.pitchBadge}><Text style={styles.pitchLabel}>{item.pitch}</Text></View>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={isInLiveSession ? `Remove ${item.songName || 'song'} for ${item.singerName || 'singer'} from Live` : `Add ${item.songName || 'song'} for ${item.singerName || 'singer'} to Live`}
-                accessibilityState={{ selected: isInLiveSession }}
-                onPress={() => isInLiveSession
-                  ? removeSong(item.songId, item.singerId)
-                  : addSong({ id: item.songId, name: item.songName || 'Untitled bhajan' }, { singerId: item.singerId, singerName: item.singerName, pitch: item.pitch })}
-                style={[styles.liveButton, isInLiveSession && styles.liveButtonSelected]}
-              >
-                {isInLiveSession ? <Check color={colors.white} size={17} /> : <Plus color={colors.forest} size={18} />}
-              </Pressable>
-              {pitchScope === 'mine' || canManageAllPitches ? (
-                <View style={styles.pitchManagementActions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Edit pitch for ${item.songName || 'song'}`}
-                    disabled={!item.id || mutatingPitchId === item.id}
-                    onPress={() => openEditPitch(item)}
-                    style={[styles.managementButton, !item.id && styles.disabledAction]}
-                  >
-                    <Pencil color={colors.forest} size={16} />
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Delete pitch for ${item.songName || 'song'}`}
-                    disabled={!item.id || mutatingPitchId === item.id}
-                    onPress={() => confirmDeletePitch(item)}
-                    style={[styles.managementButton, !item.id && styles.disabledAction]}
-                  >
-                    {mutatingPitchId === item.id ? <ActivityIndicator color={colors.rose} size="small" /> : <Trash2 color={colors.rose} size={17} />}
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
-          );
-        }}
+        renderItem={renderPitch}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             {isRefreshing ? <ActivityIndicator color={colors.forest} /> : <AudioLines color={colors.saffron} size={23} />}
@@ -327,12 +395,15 @@ const styles = StyleSheet.create({
   addButton: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 7, backgroundColor: colors.forest },
   addLabel: { color: colors.white, fontSize: 11, fontWeight: '700' },
   listContent: { flexGrow: 1, backgroundColor: colors.paper, paddingHorizontal: 16, paddingBottom: 16 },
-  pitchRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center' },
-  pitchMain: { flex: 1, minHeight: 56, paddingLeft: 0, paddingRight: 6, flexDirection: 'row', alignItems: 'center' },
-  liveButton: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
+  pitchRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center' },
+  pitchMain: { flex: 1, minHeight: 62, paddingLeft: 0, paddingRight: 6, flexDirection: 'row', alignItems: 'center' },
+  liveButton: { width: 42, height: 54, alignItems: 'center', justifyContent: 'center', gap: 2 },
   liveButtonSelected: { backgroundColor: colors.forest },
   pitchManagementActions: { flexDirection: 'row', alignItems: 'center' },
-  managementButton: { width: 30, height: 44, alignItems: 'center', justifyContent: 'center' },
+  managementButton: { width: 38, height: 54, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  actionHint: { color: colors.muted, fontSize: 8, lineHeight: 10, fontWeight: '600', textAlign: 'center' },
+  selectedActionHint: { color: colors.white },
+  deleteHint: { color: colors.rose, fontSize: 8, lineHeight: 10, fontWeight: '600', textAlign: 'center' },
   disabledAction: { opacity: 0.35 },
   rowPressed: { opacity: 0.72 },
   songMark: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 9 },

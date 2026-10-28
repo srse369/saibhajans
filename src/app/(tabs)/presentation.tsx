@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { ArrowRight, Clapperboard, Play } from 'lucide-react-native';
+import { ArrowRight, Clapperboard, ListMusic, Play, Trash2 } from 'lucide-react-native';
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   Pressable,
@@ -11,17 +12,80 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLiveSession, type LiveSessionItem } from '../../contexts/LiveSessionContext';
 import { colors } from '../../lib/theme';
-import { fetchPresentationSessions, type PresentationSession } from '../../lib/presentation';
+import { deletePresentationSession, fetchPresentationSessions, type PresentationSession } from '../../lib/presentation';
 
 export default function PresentationScreen() {
   const { user, isLoading: isAuthLoading } = useAuth();
+  const { items: liveItems, isLoading: isLiveLoading, replaceItems } = useLiveSession();
   const [sessions, setSessions] = useState<PresentationSession[]>([]);
   const [loadedForAccount, setLoadedForAccount] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const accountKey = user?.id || 'public';
   const isLoading = isAuthLoading || loadedForAccount !== accountKey || isRefreshing;
+
+  function canDeleteSession(session: PresentationSession) {
+    if (user?.role === 'admin') return true;
+    if (user?.role === 'viewer') return session.createdBy === user.email;
+    if (user?.role === 'editor') {
+      return !session.centerIds?.length || session.centerIds.some((centerId) => user.editorFor.includes(centerId));
+    }
+    return false;
+  }
+
+  function loadSession(session: PresentationSession) {
+    const nextItems: LiveSessionItem[] = session.items.map((item) => ({
+      songId: item.songId,
+      songName: item.songName,
+      singerId: item.singerId,
+      singerName: item.singerName,
+      singerGender: item.singerGender,
+      pitch: item.pitch,
+      language: item.language,
+      deity: item.deity,
+    }));
+    const confirmLoad = () => {
+      setLoadingSessionId(session.id);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          void replaceItems(nextItems)
+            .then(() => router.navigate('/live'))
+            .catch((cause: unknown) => Alert.alert('Unable to load Live queue', cause instanceof Error ? cause.message : 'Please try again.'))
+            .finally(() => setLoadingSessionId(null));
+        });
+      });
+    };
+
+    if (liveItems.length) {
+      Alert.alert('Load presentation to Live?', 'This will replace the songs currently in your Live queue.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Load', onPress: confirmLoad },
+      ]);
+    } else {
+      confirmLoad();
+    }
+  }
+
+  function confirmDeleteSession(session: PresentationSession) {
+    Alert.alert('Delete presentation?', `Delete ${session.name}? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          setDeletingSessionId(session.id);
+          void deletePresentationSession(session.id)
+            .then(() => loadSessions())
+            .catch((cause: unknown) => Alert.alert('Unable to delete presentation', cause instanceof Error ? cause.message : 'Please try again.'))
+            .finally(() => setDeletingSessionId(null));
+        },
+      },
+    ]);
+  }
 
   const loadSessions = useCallback(async () => {
     setIsRefreshing(true);
@@ -38,6 +102,7 @@ export default function PresentationScreen() {
 
   useFocusEffect(useCallback(() => {
     if (isAuthLoading) return undefined;
+    setLoadingSessionId(null);
     let isActive = true;
     void fetchPresentationSessions()
       .then((loadedSessions) => {
@@ -74,23 +139,57 @@ export default function PresentationScreen() {
         style={styles.sessionList}
         data={sessions}
         keyExtractor={(session) => session.id}
-        renderItem={({ item }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Present ${item.name}, ${item.items.length} songs`}
-            onPress={() => router.push({ pathname: '/presentation/[id]', params: { id: item.id } })}
-            style={({ pressed }) => [styles.sessionRow, pressed && styles.pressed]}
-          >
-            <View style={styles.sessionIcon}><Clapperboard color={colors.forest} size={21} strokeWidth={1.7} /></View>
-            <View style={styles.sessionCopy}>
-              <Text numberOfLines={1} style={styles.sessionName}>{item.name}</Text>
-              <Text numberOfLines={1} style={styles.sessionMeta}>
-                {item.items.length} {item.items.length === 1 ? 'song' : 'songs'}{item.description ? `  ·  ${item.description}` : ''}
-              </Text>
+        renderItem={({ item }) => {
+          const isLoadingSession = loadingSessionId === item.id;
+          return (
+            <View style={styles.sessionRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Present ${item.name}, ${item.items.length} songs`}
+              onPress={() => router.push({ pathname: '/presentation/[id]', params: { id: item.id } })}
+              style={({ pressed }) => [styles.sessionMain, pressed && styles.pressed]}
+            >
+              <View style={styles.sessionIcon}><Clapperboard color={colors.forest} size={21} strokeWidth={1.7} /></View>
+              <View style={styles.sessionCopy}>
+                <Text numberOfLines={1} style={styles.sessionName}>{item.name}</Text>
+                <Text numberOfLines={1} style={styles.sessionMeta}>
+                  {item.items.length} {item.items.length === 1 ? 'song' : 'songs'}{item.description ? `  ·  ${item.description}` : ''}
+                </Text>
+              </View>
+              <View style={styles.presentButton}>
+                <Play color={colors.white} fill={colors.white} size={14} />
+                <Text style={styles.presentLabel}>Present</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Load ${item.name} to Live`}
+              accessibilityState={{ disabled: isLiveLoading || loadingSessionId !== null }}
+              disabled={isLiveLoading || loadingSessionId !== null}
+              onPress={() => loadSession(item)}
+              style={[styles.actionButton, (isLiveLoading || loadingSessionId !== null) && styles.disabledAction]}
+            >
+              {isLoadingSession ? <ActivityIndicator color={colors.forest} size="small" /> : <ListMusic color={colors.forest} size={16} />}
+              <Text style={styles.actionLabel}>{isLoadingSession ? 'Loading' : 'Live'}</Text>
+            </Pressable>
+            {canDeleteSession(item) ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${item.name}`}
+                accessibilityState={{ disabled: deletingSessionId === item.id }}
+                disabled={deletingSessionId === item.id}
+                onPress={() => confirmDeleteSession(item)}
+                style={styles.deleteButton}
+              >
+                {deletingSessionId === item.id
+                  ? <ActivityIndicator color={colors.rose} size="small" />
+                  : <Trash2 color={colors.rose} size={17} />}
+                <Text style={styles.deleteLabel}>Delete</Text>
+              </Pressable>
+            ) : null}
             </View>
-            <View style={styles.presentButton}><Play color={colors.white} fill={colors.white} size={14} /></View>
-          </Pressable>
-        )}
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             {isLoading ? <ActivityIndicator color={colors.forest} /> : <ArrowRight color={colors.saffron} size={22} />}
@@ -123,16 +222,23 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#E6C08B', fontSize: 9, fontWeight: '700', letterSpacing: 1.4, marginBottom: 5 },
   heading: { color: colors.white, fontSize: 25, lineHeight: 30, fontFamily: 'Georgia' },
   intro: { color: '#C3D2C8', fontSize: 12, lineHeight: 16, marginTop: 3 },
-  sectionHeading: { paddingHorizontal: 0, paddingTop: 12, paddingBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { color: colors.ink, fontSize: 15, fontFamily: 'Georgia' },
   sectionCount: { color: colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  sessionRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2 },
+  sessionRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2 },
+  sessionMain: { flex: 1, minHeight: 62, flexDirection: 'row', alignItems: 'center' },
   pressed: { opacity: 0.72 },
   sessionIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.sage, alignItems: 'center', justifyContent: 'center', marginRight: 9 },
   sessionCopy: { flex: 1, marginRight: 8 },
   sessionName: { color: colors.ink, fontSize: 13, fontWeight: '600', marginBottom: 2 },
   sessionMeta: { color: colors.muted, fontSize: 10 },
-  presentButton: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.forest, alignItems: 'center', justifyContent: 'center' },
+  presentButton: { width: 46, height: 44, borderRadius: 6, backgroundColor: colors.forest, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  presentLabel: { color: colors.white, fontSize: 8, lineHeight: 10, fontWeight: '700' },
+  actionButton: { width: 44, minHeight: 44, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, marginLeft: 5, borderRadius: 6, backgroundColor: colors.sage },
+  actionLabel: { color: colors.forest, fontSize: 8, lineHeight: 10, fontWeight: '700' },
+  disabledAction: { opacity: 0.45 },
+  deleteButton: { width: 40, height: 50, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, marginLeft: 2 },
+  deleteLabel: { color: colors.rose, fontSize: 8, lineHeight: 10, fontWeight: '600' },
   separator: { height: 1, backgroundColor: colors.line },
   emptyState: { alignItems: 'center', paddingHorizontal: 28, paddingVertical: 38 },
   emptyTitle: { color: colors.ink, fontFamily: 'Georgia', fontSize: 18, textAlign: 'center', marginTop: 12 },

@@ -14,6 +14,7 @@ import {
 import type { Singer, SingerSongPitch, SingerUser } from '../lib/singers';
 import type { Song } from '../lib/songs';
 import { colors } from '../lib/theme';
+import { singerNameColor } from '../lib/singerColors';
 
 interface PitchEditorModalProps {
   visible: boolean;
@@ -157,7 +158,7 @@ export function PitchEditorModal({ visible, pitch, scope, user, songs, singers, 
                       }}
                       style={styles.optionRow}
                     >
-                      <Text numberOfLines={2} style={styles.optionLabel}>{label}</Text>
+                      <Text numberOfLines={2} style={[styles.optionLabel, pickerMode === 'singer' && typeof item !== 'string' && 'gender' in item ? { color: singerNameColor(item.gender) } : null]}>{label}</Text>
                       {selected ? <Check color={colors.forest} size={17} /> : null}
                     </Pressable>
                   );
@@ -188,7 +189,7 @@ export function PitchEditorModal({ visible, pitch, scope, user, songs, singers, 
                 onPress={() => openPicker('singer')}
                 style={[styles.fieldButton, (scope === 'mine' || isEditing) && styles.disabledField]}
               >
-                <Text numberOfLines={2} style={[styles.fieldValue, !singerLabel && !pitch?.singerName && styles.placeholder]}>{singerLabel || pitch?.singerName || 'Choose a singer'}</Text>
+                <Text numberOfLines={2} style={[styles.fieldValue, !singerLabel && !pitch?.singerName && styles.placeholder, { color: singerNameColor(selectedSinger?.gender) }]}>{singerLabel || pitch?.singerName || 'Choose a singer'}</Text>
                 {scope === 'all' && !isEditing ? <ChevronDown color={colors.muted} size={17} /> : null}
               </Pressable>
               {scope === 'mine' && !isEditing ? <Text style={styles.helperText}>This pitch will be saved under your singer profile.</Text> : null}
