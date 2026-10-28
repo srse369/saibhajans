@@ -147,7 +147,7 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
           <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
             <View style={styles.drawerHeader}>
               <View>
-                <Text style={styles.drawerEyebrow}>SAI BHAJANS</Text>
+                <Text style={styles.drawerEyebrow}>SSS BHAJAN STUDIO</Text>
                 <Text style={styles.drawerTitle}>Your profile</Text>
               </View>
             </View>

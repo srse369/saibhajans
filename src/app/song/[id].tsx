@@ -83,7 +83,7 @@ export default function SongDetailScreen() {
         shouldPlayInBackground: true,
         interruptionMode: 'doNotMix',
       });
-      player.setActiveForLockScreen(true, { title: song.name, artist: 'Sai Bhajans' });
+      player.setActiveForLockScreen(true, { title: song.name, artist: 'SSS Bhajan Studio' });
       player.play();
     } catch {
       setAudioError('Audio could not be started. Check your connection and try again.');

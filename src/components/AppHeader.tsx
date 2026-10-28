@@ -30,7 +30,7 @@ export function AppHeader() {
             resizeMode="contain"
             style={styles.logo}
           />
-          <Text numberOfLines={1} style={styles.title}>Sai Bhajans</Text>
+          <Text numberOfLines={1} style={styles.title}>Sri Sathya Sai Bhajans</Text>
         </View>
         <View style={styles.actions}>
           <Pressable

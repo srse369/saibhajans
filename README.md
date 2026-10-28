@@ -1,4 +1,4 @@
-# Sai Bhajans
+# Sri Sathya Sai (SSS) Bhajan Studio
 
 Native iOS and Android app for browsing, saving, reading, and listening to Sai bhajans. The app consumes the public songs API from the sibling `saisongs` service.
 

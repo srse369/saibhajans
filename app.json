@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "Sai Bhajans",
-    "slug": "saibhajans",
+    "name": "SSS Bhajan Studio",
+    "slug": "sssbhajanstudio",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/sai-values-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.srse369.saibhajans",
+      "bundleIdentifier": "com.sssc.sssbhajanstudio",
       "infoPlist": {
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait",
@@ -49,7 +49,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "saibhajans",
+    "scheme": "sssbhajanstudio",
     "plugins": [
       "expo-router",
       [
