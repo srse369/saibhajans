@@ -56,7 +56,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="presentation"
         options={{
-          title: 'Presentation',
+          title: 'Presentations',
           tabBarIcon: ({ color, size }) => <Presentation color={color} size={size} strokeWidth={1.8} />,
         }}
       />

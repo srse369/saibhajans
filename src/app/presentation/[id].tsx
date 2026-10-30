@@ -587,7 +587,6 @@ export default function SessionPresentationScreen() {
             <View style={styles.pickerSheet}>
               <View style={styles.pickerHeader}>
                 <View>
-                  <Text style={styles.pickerEyebrow}>PRESENTATION STYLE</Text>
                   <Text style={styles.pickerTitle}>Choose a template</Text>
                 </View>
                 <Pressable accessibilityRole="button" accessibilityLabel="Close template picker" onPress={() => setShowTemplatePicker(false)} style={styles.pickerClose}>
@@ -662,7 +661,6 @@ const styles = StyleSheet.create({
   templateButtonText: { color: colors.white, fontSize: 10, fontWeight: '600', flexShrink: 1 },
   fullscreenToggle: { width: 34, height: 38, alignItems: 'center', justifyContent: 'center' },
   slide: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 14 },
-  slideEyebrow: { color: '#E6C08B', fontSize: 10, fontWeight: '700', letterSpacing: 1.8, textAlign: 'center', marginBottom: 12 },
   songTitle: { color: colors.white, fontFamily: 'Georgia', fontSize: 28, lineHeight: 35, textAlign: 'center' },
   songMeta: { color: '#C3D2C8', fontSize: 12, textAlign: 'center', marginTop: 9 },
   lyricsRule: { height: 1, backgroundColor: '#426756', marginVertical: 24 },
@@ -686,7 +684,6 @@ const styles = StyleSheet.create({
   pickerScrim: { ...StyleSheet.absoluteFill },
   pickerSheet: { maxHeight: '78%', backgroundColor: colors.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: 'hidden' },
   pickerHeader: { minHeight: 82, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.line },
-  pickerEyebrow: { color: colors.saffron, fontSize: 9, fontWeight: '700', letterSpacing: 1.4, marginBottom: 4 },
   pickerTitle: { color: colors.ink, fontSize: 21, fontFamily: 'Georgia' },
   pickerClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   templateList: { paddingHorizontal: 16, paddingVertical: 12 },

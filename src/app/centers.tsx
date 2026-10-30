@@ -125,12 +125,13 @@ export default function CentersScreen() {
   if (user?.role !== 'admin') {
     return (
       <View style={styles.screen}>
-        <View style={styles.topBar}>
+        <View style={styles.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft color={colors.ink} size={20} />
+            <ArrowLeft color={colors.white} size={20} />
           </Pressable>
-          <Text style={styles.topBarTitle}>CENTER MANAGEMENT</Text>
-          <View style={styles.backButton} />
+          <View style={styles.headerCopy}>
+            <Text style={styles.heading}>Centers</Text>
+          </View>
         </View>
         <Text style={styles.accessDenied}>Only administrators can manage centers.</Text>
       </View>
@@ -141,18 +142,17 @@ export default function CentersScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topBar}>
+      <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft color={colors.ink} size={20} />
+          <ArrowLeft color={colors.white} size={20} />
         </Pressable>
-        <Text style={styles.topBarTitle}>CENTER MANAGEMENT</Text>
+        <View style={styles.headerCopy}>
+          <Text style={styles.heading}>Centers</Text>
+          <Text style={styles.intro}>{centers.length} centers · assign editors to manage each one</Text>
+        </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Add center" onPress={() => openForm()} style={styles.addButton}>
           <Plus color={colors.white} size={18} />
         </Pressable>
-      </View>
-      <View style={styles.pageHeader}>
-        <Text style={styles.heading}>Centers</Text>
-        <Text style={styles.subtitle}>{centers.length} centers · assign editors to manage each one</Text>
       </View>
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       <FlatList
@@ -221,13 +221,12 @@ export default function CentersScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper },
-  topBar: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 },
-  backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  topBarTitle: { color: colors.forest, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
-  addButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: colors.forest },
-  pageHeader: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, backgroundColor: colors.forest },
-  heading: { color: colors.white, fontFamily: 'Georgia', fontSize: 23 },
-  subtitle: { color: '#C3D2C8', fontSize: 11, marginTop: 3 },
+  header: { backgroundColor: colors.forest, paddingLeft: 12, paddingRight: 16, paddingTop: 2, paddingBottom: 15, flexDirection: 'row', alignItems: 'center' },
+  headerCopy: { flex: 1 },
+  backButton: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
+  addButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: '#426756' },
+  heading: { color: '#E6C08B', fontSize: 25, lineHeight: 30, fontWeight: '700' },
+  intro: { color: '#C3D2C8', fontSize: 12, lineHeight: 16, marginTop: 3 },
   error: { color: colors.rose, fontSize: 12, lineHeight: 18, marginHorizontal: 18, marginTop: 10 },
   listContent: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 18 },
   separator: { height: 1, backgroundColor: colors.line },

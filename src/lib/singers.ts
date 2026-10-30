@@ -229,6 +229,18 @@ export async function verifyReviewLogin(email: string, password: string): Promis
   return normalizeSingerUser(result.user, result.role);
 }
 
+export async function submitFeedback(input: { feedback: string; email?: string; context?: string; category?: 'bug' | 'feature' | 'improvement' | 'question' | 'other' }): Promise<void> {
+  await request('/feedback', {
+    method: 'POST',
+    body: JSON.stringify({
+      feedback: input.context ? `[${input.context}] ${input.feedback}` : input.feedback,
+      category: input.category || 'other',
+      email: input.email || undefined,
+      url: 'app://sssbhajanstudio',
+    }),
+  });
+}
+
 export async function logoutSingerSession(): Promise<void> {
   await request('/auth/logout', { method: 'POST' });
 }

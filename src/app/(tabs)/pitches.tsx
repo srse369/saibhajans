@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { Alert, ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ArrowRight, AudioLines, Check, Pencil, Plus, Search, Trash2 } from 'lucide-react-native';
+import { AlphabetIndex, alphabetIndexStyles, compareNames, useAlphabetJump } from '../../components/AlphabetIndex';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLiveSession } from '../../contexts/LiveSessionContext';
 import { useSongCatalog } from '../../contexts/SongsContext';
@@ -243,6 +244,7 @@ export default function PitchesScreen() {
       ? pitches
       : pitches.filter((item) => allPitchSingerIds.has(item.singerId)),
   [pitchScope, pitches, user?.id, isAdmin, allPitchSingerIds]);
+  const [sortBy, setSortBy] = useState<'song' | 'singer'>('song');
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visiblePitches = useMemo(() => scopedPitches.filter((item) =>
     [item.songName, item.singerName, item.pitch]
@@ -250,7 +252,14 @@ export default function PitchesScreen() {
       .join(' ')
       .toLocaleLowerCase()
       .includes(normalizedQuery),
-  ), [scopedPitches, normalizedQuery]);
+  ).sort((first, second) => sortBy === 'singer'
+    ? compareNames(first.singerName || '', second.singerName || '') || compareNames(first.songName || '', second.songName || '')
+    : compareNames(first.songName || '', second.songName || '') || compareNames(first.singerName || '', second.singerName || '')),
+  [scopedPitches, normalizedQuery, sortBy]);
+  const { listRef, windowedItems, availableLetters, scrollToLetter, loadEarlier, loadLater, showIndex } = useAlphabetJump(
+    visiblePitches,
+    sortBy === 'singer' ? getPitchSingerName : getPitchSongName,
+  );
   const livePitchKeys = useMemo(() => new Set(liveItems.map((item) => `${item.songId}|${item.singerId || ''}`)), [liveItems]);
   const showManagementActions = pitchScope === 'mine' || canManageAllPitches;
   const renderPitch = useCallback(({ item, index }: { item: SingerSongPitch; index: number }) => (
@@ -286,7 +295,6 @@ export default function PitchesScreen() {
     <View style={styles.screen}>
       <View>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>SONG REFERENCES</Text>
           <Text style={styles.heading}>Pitches</Text>
           <Text style={styles.intro}>
             {pitchScope === 'mine'
@@ -326,6 +334,21 @@ export default function PitchesScreen() {
               <Text style={[styles.scopeLabel, pitchScope === 'all' && styles.scopeLabelSelected]}>All pitches</Text>
             </Pressable>
           </View>
+        <View accessibilityRole="radiogroup" style={styles.scopeControl}>
+          {(['song', 'singer'] as const).map((option) => (
+            <Pressable
+              key={option}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: sortBy === option }}
+              onPress={() => setSortBy(option)}
+              style={[styles.scopeOption, sortBy === option && styles.scopeOptionSelected]}
+            >
+              <Text style={[styles.scopeLabel, sortBy === option && styles.scopeLabelSelected]}>
+                {option === 'song' ? 'Sort: Song, Singer' : 'Sort: Singer, Song'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
         <View style={styles.sectionHeading}>
           <Text style={styles.sectionTitle}>Assignments</Text>
           <View style={styles.sectionActions}>
@@ -339,9 +362,16 @@ export default function PitchesScreen() {
           </View>
         </View>
       </View>
+      <View style={alphabetIndexStyles.listArea}>
       <FlatList
+        ref={listRef}
         style={styles.pitchList}
-        data={visiblePitches}
+        data={windowedItems}
+        onStartReached={loadEarlier}
+        onStartReachedThreshold={0.5}
+        onEndReached={loadLater}
+        onEndReachedThreshold={2}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         keyExtractor={(item) => item.id || `${item.songId}-${item.singerId}`}
         renderItem={renderPitch}
         ListEmptyComponent={
@@ -350,11 +380,13 @@ export default function PitchesScreen() {
             <Text style={styles.emptyTitle}>{error || (isRefreshing ? 'Loading pitches' : 'No pitch assignments found')}</Text>
           </View>
         }
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, showIndex && alphabetIndexStyles.listContentWithIndex]}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void loadPitches()} tintColor={colors.forest} />}
         showsVerticalScrollIndicator={false}
       />
+      {showIndex ? <AlphabetIndex available={availableLetters} onSelect={scrollToLetter} /> : null}
+      </View>
       {user && isPitchFormVisible ? (
         <PitchEditorModal
           visible
@@ -372,20 +404,27 @@ export default function PitchesScreen() {
   );
 }
 
+function getPitchSingerName(pitch: SingerSongPitch) {
+  return pitch.singerName || '';
+}
+
+function getPitchSongName(pitch: SingerSongPitch) {
+  return pitch.songName || '';
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   pitchList: { flex: 1 },
   loadingState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingLabel: { color: colors.muted, fontSize: 13, marginTop: 12 },
-  header: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
-  eyebrow: { color: '#E6C08B', fontSize: 9, fontWeight: '700', letterSpacing: 1.4, marginBottom: 5 },
-  heading: { color: colors.white, fontSize: 25, lineHeight: 30, fontFamily: 'Georgia' },
+  header: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 15 },
+  heading: { color: '#E6C08B', fontSize: 25, lineHeight: 30, fontWeight: '700' },
   intro: { color: '#C3D2C8', fontSize: 12, lineHeight: 16, marginTop: 3 },
   searchWrap: { minHeight: 44, backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 7, marginHorizontal: 16, marginTop: -10, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center' },
   searchInput: { flex: 1, minHeight: 42, color: colors.ink, fontSize: 13, marginLeft: 8, paddingVertical: 0 },
-  scopeControl: { flexDirection: 'row', backgroundColor: colors.sage, borderRadius: 7, padding: 2, marginHorizontal: 16, marginTop: 8 },
-  scopeOption: { flex: 1, minHeight: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 5 },
-  scopeOptionSelected: { backgroundColor: colors.surface },
+  scopeControl: { flexDirection: 'row', backgroundColor: colors.sage, borderRadius: 999, padding: 3, marginHorizontal: 16, marginTop: 8 },
+  scopeOption: { flex: 1, minHeight: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
+  scopeOptionSelected: { backgroundColor: colors.surface, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   scopeLabel: { color: colors.muted, fontSize: 12, fontWeight: '600' },
   scopeLabelSelected: { color: colors.forest, fontWeight: '700' },
   sectionHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

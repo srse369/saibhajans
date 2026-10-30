@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { Alert, ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Pencil, Plus, Search, Trash2, UsersRound } from 'lucide-react-native';
+import { AlphabetIndex, alphabetIndexStyles, compareNames, useAlphabetJump } from '../../components/AlphabetIndex';
 import { colors } from '../../lib/theme';
 import { singerNameColor } from '../../lib/singerColors';
 import { useAuth } from '../../contexts/AuthContext';
@@ -35,7 +36,6 @@ export default function SingersScreen() {
 
   const canManageSingers = user?.role === 'admin' || user?.role === 'editor';
   const isAdmin = user?.role === 'admin';
-  const roleCenterIds = user?.role === 'admin' ? [] : user?.role === 'editor' ? user.editorFor : user?.centerIds || [];
 
   async function loadDirectory() {
     setIsRefreshing(true);
@@ -122,10 +122,14 @@ export default function SingersScreen() {
   }, [userId, user?.role]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const accessibleSingers = isAdmin
-    ? singers
-    : singers.filter((singer) => singer.centerIds.some((centerId) => roleCenterIds.includes(centerId)));
-  const visibleSingers = accessibleSingers.filter((singer) => singer.name.toLocaleLowerCase().includes(normalizedQuery));
+  const visibleSingers = useMemo(() => {
+    const allowedCenterIds = user?.role === 'editor' ? user.editorFor : user?.centerIds || [];
+    return singers
+      .filter((singer) => (isAdmin || singer.centerIds.some((centerId) => allowedCenterIds.includes(centerId)))
+        && singer.name.toLocaleLowerCase().includes(normalizedQuery))
+      .sort((first, second) => compareNames(first.name, second.name));
+  }, [singers, user, isAdmin, normalizedQuery]);
+  const { listRef, windowedItems, availableLetters, scrollToLetter, loadEarlier, loadLater, showIndex } = useAlphabetJump(visibleSingers, getSingerName);
 
   if (isAuthLoading || (user && loadedForUser !== user.id)) {
     return (
@@ -150,7 +154,6 @@ export default function SingersScreen() {
       <View style={styles.listScreen}>
         <View>
           <View style={styles.header}>
-            <Text style={styles.eyebrow}>THE SAI COMMUNITY</Text>
             <Text style={styles.heading}>Singers</Text>
             <Text style={styles.intro}>{singers.length} voices, with their songs and pitches.</Text>
           </View>
@@ -179,8 +182,15 @@ export default function SingersScreen() {
             </View>
           </View>
         </View>
+        <View style={alphabetIndexStyles.listArea}>
         <FlatList
-          data={visibleSingers}
+          ref={listRef}
+          data={windowedItems}
+          onStartReached={loadEarlier}
+          onStartReachedThreshold={0.5}
+          onEndReached={loadLater}
+          onEndReachedThreshold={2}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           keyExtractor={(singer) => singer.id}
           renderItem={({ item }) => {
             const songCount = pitchCounts.get(item.id) || 0;
@@ -228,13 +238,15 @@ export default function SingersScreen() {
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </View>
           }
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, showIndex && alphabetIndexStyles.listContentWithIndex]}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={() => void loadDirectory()} tintColor={colors.forest} />
           }
           showsVerticalScrollIndicator={false}
         />
+        {showIndex ? <AlphabetIndex available={availableLetters} onSelect={scrollToLetter} /> : null}
+        </View>
         {user && isSingerFormVisible ? (
           <SingerEditorModal
             singer={editingSinger}
@@ -249,14 +261,17 @@ export default function SingersScreen() {
   );
 }
 
+function getSingerName(singer: Singer) {
+  return singer.name;
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   listScreen: { flex: 1 },
   loadingState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingLabel: { color: colors.muted, fontSize: 13, marginTop: 12 },
-  header: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
-  eyebrow: { color: '#E6C08B', fontSize: 9, fontWeight: '700', letterSpacing: 1.4, marginBottom: 5 },
-  heading: { color: colors.white, fontSize: 25, lineHeight: 30, fontFamily: 'Georgia' },
+  header: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 15 },
+  heading: { color: '#E6C08B', fontSize: 25, lineHeight: 30, fontWeight: '700' },
   intro: { color: '#C3D2C8', fontSize: 12, lineHeight: 16, marginTop: 3 },
   searchWrap: { minHeight: 44, backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 7, marginHorizontal: 16, marginTop: -10, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center' },
   searchInput: { flex: 1, minHeight: 42, color: colors.ink, fontSize: 13, marginLeft: 8, paddingVertical: 0 },

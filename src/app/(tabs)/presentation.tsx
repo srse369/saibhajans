@@ -126,8 +126,7 @@ export default function PresentationScreen() {
     <View style={styles.screen}>
       <View>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>READY TO SING</Text>
-          <Text style={styles.heading}>Presentation</Text>
+          <Text style={styles.heading}>Presentations</Text>
           <Text style={styles.intro}>Choose a session to display its songs and lyrics.</Text>
         </View>
         <View style={styles.sectionHeading}>
@@ -218,9 +217,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   sessionList: { flex: 1 },
   listContent: { flexGrow: 1, backgroundColor: colors.paper, paddingHorizontal: 16, paddingBottom: 16 },
-  header: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
-  eyebrow: { color: '#E6C08B', fontSize: 9, fontWeight: '700', letterSpacing: 1.4, marginBottom: 5 },
-  heading: { color: colors.white, fontSize: 25, lineHeight: 30, fontFamily: 'Georgia' },
+  header: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 15 },
+  heading: { color: '#E6C08B', fontSize: 25, lineHeight: 30, fontWeight: '700' },
   intro: { color: '#C3D2C8', fontSize: 12, lineHeight: 16, marginTop: 3 },
   sectionHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { color: colors.ink, fontSize: 15, fontFamily: 'Georgia' },

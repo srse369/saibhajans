@@ -97,7 +97,6 @@ export function SongEditorModal({ visible, song, onClose, onSubmit }: SongEditor
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>SONG LIBRARY</Text>
               <Text style={styles.title}>{song ? 'Edit bhajan' : 'Add bhajan'}</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}>
@@ -150,7 +149,6 @@ const styles = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFill },
   sheet: { maxHeight: '94%', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24, backgroundColor: colors.paper, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   header: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  eyebrow: { color: colors.saffron, fontSize: 9, fontWeight: '700', letterSpacing: 1.3, marginBottom: 3 },
   title: { color: colors.ink, fontFamily: 'Georgia', fontSize: 20 },
   closeButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: colors.surface },
   sourceNotice: { color: '#765321', fontSize: 11, lineHeight: 16, padding: 9, marginBottom: 6, backgroundColor: '#F5EBD8', borderRadius: 6 },

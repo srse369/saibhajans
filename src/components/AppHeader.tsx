@@ -52,7 +52,7 @@ export function AppHeader() {
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.forest },
-  bar: { minHeight: 56, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  bar: { minHeight: 48, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
   logo: { width: 34, height: 34, marginRight: 10 },
   title: { color: colors.white, fontFamily: 'Georgia', fontSize: 18, flexShrink: 1 },

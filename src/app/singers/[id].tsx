@@ -82,7 +82,6 @@ export default function SingerDetailScreen() {
             <View style={styles.avatar}>
               <Text style={styles.avatarInitial}>{singer.name.trim().charAt(0).toLocaleUpperCase()}</Text>
             </View>
-            <Text style={styles.eyebrow}>SINGER</Text>
             <Text style={[styles.singerName, { color: singerNameColor(singer.gender) }]}>{singer.name}</Text>
             <Text style={styles.singerMeta}>
               {songs.length} {songs.length === 1 ? 'song' : 'songs'}{singer.gender ? `  ·  ${singer.gender}` : ''}
@@ -163,7 +162,6 @@ const styles = StyleSheet.create({
   profileHeader: { backgroundColor: colors.forest, alignItems: 'center', paddingTop: 16, paddingBottom: 27, paddingHorizontal: 24 },
   avatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.saffronLight, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   avatarInitial: { color: colors.forest, fontFamily: 'Georgia', fontSize: 28 },
-  eyebrow: { color: '#E6C08B', fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
   singerName: { color: colors.white, fontFamily: 'Georgia', fontSize: 27, lineHeight: 33, textAlign: 'center', marginTop: 7 },
   singerMeta: { color: '#C3D2C8', fontSize: 12, marginTop: 6 },
   songRow: { minHeight: 78, marginHorizontal: 16, paddingRight: 4, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 8, overflow: 'hidden' },

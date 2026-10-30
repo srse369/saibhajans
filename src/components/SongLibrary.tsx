@@ -16,6 +16,8 @@ import { ArrowRight, Check, Heart, Music2, Pencil, Plus, Search, Trash2, WifiOff
 import { useAuth } from '../contexts/AuthContext';
 import { useSongs } from '../contexts/SongsContext';
 import { useLiveSession } from '../contexts/LiveSessionContext';
+import { AlphabetIndex, alphabetIndexStyles, useAlphabetJump } from './AlphabetIndex';
+import { formatReferencePitch } from '../lib/pitch';
 import { coverColors, colors } from '../lib/theme';
 import { keepProgressVisible } from '../lib/progress';
 import { createSong, deleteSong, updateSong, type Song, type SongInput } from '../lib/songs';
@@ -37,9 +39,17 @@ function parseLanguages(language: string | null | undefined) {
     : [];
 }
 
+function getSongName(song: Song) {
+  return song.name;
+}
+
 function formatLabel(value: string) {
   return value.replace(/\b\w/g, (letter) => letter.toLocaleUpperCase());
 }
+
+const ROW_HEIGHT = 64;
+const ROW_SEPARATOR = 1;
+const ROW_STRIDE = ROW_HEIGHT + ROW_SEPARATOR;
 
 interface SongRowProps {
   item: Song;
@@ -117,7 +127,24 @@ const SongRow = memo(function SongRow({
         </View>
         <View style={styles.songCopy}>
           <Text numberOfLines={1} style={styles.songTitle}>{item.name}</Text>
-            <Text numberOfLines={2} style={styles.songSubtitle}>{subtitle || 'Sai bhajan'}</Text>
+          <Text numberOfLines={1} style={styles.songSubtitle}>{subtitle || 'Sai bhajan'}</Text>
+          {item.refGents || item.refLadies ? (
+            <Text numberOfLines={1} style={styles.pitchLine}>
+              {item.refGents ? (
+                <>
+                  <Text style={styles.gentsLabel}>Gents: </Text>
+                  {formatReferencePitch(item.refGents)}
+                </>
+              ) : null}
+              {item.refGents && item.refLadies ? ' • ' : null}
+              {item.refLadies ? (
+                <>
+                  <Text style={styles.ladiesLabel}>Ladies: </Text>
+                  {formatReferencePitch(item.refLadies)}
+                </>
+              ) : null}
+            </Text>
+          ) : null}
         </View>
       </Pressable>
       <Pressable
@@ -216,7 +243,11 @@ export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
     const matchesLanguage = deferredLanguage === 'all' || songLanguages.includes(deferredLanguage);
     if (!matchesLanguage) return false;
     return searchText.includes(normalizedQuery);
-  }).map(({ song }) => song), [searchableSongs, deferredLanguage, normalizedQuery]);
+  }).map(({ song }) => song).sort((first, second) => first.name.localeCompare(second.name, undefined, { sensitivity: 'base' })),
+  [searchableSongs, deferredLanguage, normalizedQuery]);
+  const {
+    listRef, windowedItems: windowedSongs, availableLetters, scrollToLetter, loadEarlier, loadLater, showIndex,
+  } = useAlphabetJump(visibleSongs, getSongName);
 
   const openSongEditor = useCallback((song: Song | null) => {
     setEditingSong(song);
@@ -311,8 +342,7 @@ export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
     <View style={styles.library}>
       <View>
         <View style={styles.masthead}>
-          <Text style={styles.eyebrow}>{savedOnly ? 'YOUR COLLECTION' : 'SING WITH DEVOTION'}</Text>
-          <Text style={styles.heading}>{savedOnly ? 'Favorite Bhajans' : 'Find a bhajan'}</Text>
+          <Text style={styles.heading}>{savedOnly ? 'Favorite Bhajans' : 'Songs'}</Text>
           <Text style={styles.intro}>
             {savedOnly
               ? `${savedSongs.length} favorite ${savedSongs.length === 1 ? 'bhajan' : 'bhajans'}.`
@@ -361,19 +391,34 @@ export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
           ) : null}
         </View>
       </View>
-      <FlatList
-        style={styles.songList}
-        data={visibleSongs}
-        keyExtractor={(song) => song.id}
-        renderItem={renderSong}
-        ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={styles.rowGap} />}
-        refreshControl={
-          <RefreshControl refreshing={isLoading && songs.length > 0} onRefresh={() => void refreshSongs()} tintColor={colors.forest} />
-        }
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.listArea}>
+        <FlatList
+          ref={listRef}
+          style={styles.songList}
+          data={windowedSongs}
+          onStartReached={loadEarlier}
+          onEndReached={loadLater}
+          onEndReachedThreshold={2}
+          onStartReachedThreshold={0.5}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          keyExtractor={(song) => song.id}
+          renderItem={renderSong}
+          getItemLayout={(_, position) => ({ length: ROW_STRIDE, offset: ROW_STRIDE * position, index: position })}
+          initialNumToRender={12}
+          maxToRenderPerBatch={8}
+          windowSize={3}
+          updateCellsBatchingPeriod={30}
+          removeClippedSubviews
+          ListEmptyComponent={renderEmptyState}
+          contentContainerStyle={[styles.listContent, showIndex && alphabetIndexStyles.listContentWithIndex]}
+          ItemSeparatorComponent={() => <View style={styles.rowGap} />}
+          refreshControl={
+            <RefreshControl refreshing={isLoading && songs.length > 0} onRefresh={() => void refreshSongs()} tintColor={colors.forest} />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+        {showIndex ? <AlphabetIndex available={availableLetters} onSelect={scrollToLetter} /> : null}
+      </View>
       {canManageSongs && isEditorVisible ? (
         <SongEditorModal
           visible
@@ -388,11 +433,11 @@ export function SongLibrary({ savedOnly = false }: SongLibraryProps) {
 
 const styles = StyleSheet.create({
   library: { flex: 1, backgroundColor: colors.paper },
+  listArea: { flex: 1 },
   songList: { flex: 1 },
   listContent: { backgroundColor: colors.paper, paddingHorizontal: 16, paddingBottom: 18 },
-  masthead: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
-  eyebrow: { color: '#E6C08B', fontSize: 9, fontWeight: '700', letterSpacing: 1.4, marginBottom: 5 },
-  heading: { color: '#FFFEFA', fontSize: 25, lineHeight: 30, fontFamily: 'Georgia' },
+  masthead: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 15 },
+  heading: { color: '#E6C08B', fontSize: 25, lineHeight: 30, fontWeight: '700' },
   intro: { color: '#C3D2C8', fontSize: 12, lineHeight: 16, marginTop: 3 },
   searchWrap: { minHeight: 44, backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 7, marginHorizontal: 16, marginTop: -10, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center' },
   searchInput: { flex: 1, minHeight: 42, color: colors.ink, fontSize: 13, marginLeft: 8, paddingVertical: 0 },
@@ -404,12 +449,15 @@ const styles = StyleSheet.create({
   sectionHeading: { paddingHorizontal: 16, paddingBottom: 6, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   sectionTitle: { color: colors.ink, fontSize: 15, fontFamily: 'Georgia' },
   songCount: { color: colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  songRow: { flexDirection: 'row', alignItems: 'center', minHeight: 64 },
+  songRow: { flexDirection: 'row', alignItems: 'center', height: 64 },
   songMain: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 62, paddingLeft: 2, paddingRight: 6 },
   pressed: { opacity: 0.72 },
   songMark: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 9 },
   songCopy: { flex: 1, marginRight: 6 },
   songTitle: { color: colors.ink, fontSize: 13, fontWeight: '600', marginBottom: 2 },
+  pitchLine: { color: colors.ink, fontSize: 10, lineHeight: 13, marginTop: 1 },
+  gentsLabel: { color: '#2563EB' },
+  ladiesLabel: { color: '#DB2777' },
   songSubtitle: { color: colors.muted, fontSize: 10, lineHeight: 13 },
   saveButton: { width: 42, height: 60, alignItems: 'center', justifyContent: 'center', gap: 2 },
   liveButton: { width: 42, height: 60, alignItems: 'center', justifyContent: 'center', gap: 2 },

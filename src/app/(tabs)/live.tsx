@@ -72,7 +72,6 @@ export default function LiveScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>UP NEXT</Text>
         <Text style={styles.heading}>Live</Text>
         <Text style={styles.intro}>
           {items.length ? `${items.length} ${items.length === 1 ? 'song' : 'songs'} in your queue.` : 'Build a song queue, then present it from here.'}
@@ -209,7 +208,6 @@ export default function LiveScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalEyebrow}>LIVE SESSION</Text>
                 <Text style={styles.modalTitle}>Save to Presentations</Text>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setShowSaveModal(false)} style={styles.closeButton}>
@@ -247,9 +245,8 @@ export default function LiveScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  header: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
-  eyebrow: { color: '#E6C08B', fontSize: 9, fontWeight: '700', letterSpacing: 1.4, marginBottom: 5 },
-  heading: { color: colors.white, fontSize: 25, lineHeight: 30, fontFamily: 'Georgia' },
+  header: { backgroundColor: colors.forest, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 15 },
+  heading: { color: '#E6C08B', fontSize: 25, lineHeight: 30, fontWeight: '700' },
   intro: { color: '#C3D2C8', fontSize: 12, lineHeight: 16, marginTop: 3 },
   sectionHeading: { minHeight: 42, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { color: colors.ink, fontSize: 15, fontFamily: 'Georgia' },
@@ -286,7 +283,6 @@ const styles = StyleSheet.create({
   modalScrim: { ...StyleSheet.absoluteFill },
   modalSheet: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28, backgroundColor: colors.paper, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   modalHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  modalEyebrow: { color: colors.saffron, fontSize: 9, fontWeight: '700', letterSpacing: 1.3, marginBottom: 4 },
   modalTitle: { color: colors.ink, fontFamily: 'Georgia', fontSize: 21 },
   closeButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: colors.surface },
   nameInput: { minHeight: 48, paddingHorizontal: 13, borderWidth: 1, borderColor: colors.line, borderRadius: 7, color: colors.ink, fontSize: 14, backgroundColor: colors.surface },

@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProfileButton } from '../../components/ProfileDrawer';
 import { useFavoriteSongs } from '../../contexts/SongsContext';
 import { fetchSong, type Song } from '../../lib/songs';
+import { formatReferencePitch } from '../../lib/pitch';
 import { colors } from '../../lib/theme';
 
 function formatTime(seconds: number) {
@@ -146,7 +147,7 @@ export default function SongDetailScreen() {
         nestedScrollEnabled
       >
         <View style={styles.songIntro}>
-          <Text style={styles.songEyebrow}>{song.language?.toLocaleUpperCase() || 'BHAJAN'}</Text>
+          {song.language ? <Text style={styles.songEyebrow}>{song.language.toLocaleUpperCase()}</Text> : null}
           <Text style={styles.songTitle}>{song.name}</Text>
           {song.deity ? <Text style={styles.deityName}>A song for {song.deity}</Text> : null}
           {metadata.length > 0 ? (
@@ -155,6 +156,23 @@ export default function SongDetailScreen() {
                 <Text key={`${value}-${index}`} style={styles.metadataText}>{value}</Text>
               ))}
             </View>
+          ) : null}
+          {song.refGents || song.refLadies ? (
+            <Text style={styles.pitchLine}>
+              {song.refGents ? (
+                <>
+                  <Text style={styles.gentsLabel}>Gents: </Text>
+                  {formatReferencePitch(song.refGents)}
+                </>
+              ) : null}
+              {song.refGents && song.refLadies ? ' • ' : null}
+              {song.refLadies ? (
+                <>
+                  <Text style={styles.ladiesLabel}>Ladies: </Text>
+                  {formatReferencePitch(song.refLadies)}
+                </>
+              ) : null}
+            </Text>
           ) : null}
         </View>
 
@@ -225,6 +243,9 @@ const styles = StyleSheet.create({
   songTitle: { color: colors.ink, fontFamily: 'Georgia', fontSize: 29, lineHeight: 36, textAlign: 'center', marginTop: 8 },
   deityName: { color: colors.muted, fontSize: 13, marginTop: 6 },
   metadataRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 16 },
+  pitchLine: { color: colors.ink, fontSize: 12, textAlign: 'center', marginTop: 12 },
+  gentsLabel: { color: '#2563EB' },
+  ladiesLabel: { color: '#DB2777' },
   metadataText: { color: colors.forest, backgroundColor: colors.sage, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 6, fontSize: 11, overflow: 'hidden' },
   playerCard: { minHeight: 88, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 28 },
   playButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.forest, alignItems: 'center', justifyContent: 'center', marginRight: 13 },

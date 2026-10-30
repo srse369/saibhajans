@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,7 +13,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight, BadgeCheck, Building2, CircleUserRound, LogOut, ShieldCheck, X } from 'lucide-react-native';
+import { ArrowRight, BadgeCheck, Building2, CircleUserRound, LogOut, MessageSquare, ShieldCheck, X } from 'lucide-react-native';
+import { FeedbackForm } from './FeedbackForm';
 import { OtpSignInPanel } from './OtpSignInPanel';
 import { useAuth } from '../contexts/AuthContext';
 import { useLiveSession } from '../contexts/LiveSessionContext';
@@ -52,6 +53,9 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
   const [centers, setCenters] = useState<AccountCenter[]>([]);
   const [centersForUser, setCentersForUser] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const signInOffsetY = useRef(0);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const drawerWidth = Math.min(390, width * 0.9);
   const [translateX] = useState(() => new Animated.Value(drawerWidth));
@@ -147,11 +151,10 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
           <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
             <View style={styles.drawerHeader}>
               <View>
-                <Text style={styles.drawerEyebrow}>SSS BHAJAN STUDIO</Text>
                 <Text style={styles.drawerTitle}>Your profile</Text>
               </View>
             </View>
-            <ScrollView style={styles.drawerScroll} contentContainerStyle={styles.drawerContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView ref={scrollRef} style={styles.drawerScroll} contentContainerStyle={styles.drawerContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {user ? (
                 <>
                   <View style={styles.identityCard}>
@@ -219,6 +222,30 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
                     </Pressable>
                   ) : null}
 
+                  {isFeedbackOpen ? (
+                    <View style={styles.feedbackBox} onLayout={(event) => scrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true })}>
+                      <View style={styles.feedbackHeader}>
+                        <View style={styles.sectionTitleRowInline}>
+                          <MessageSquare color={colors.forest} size={17} />
+                          <Text style={styles.manageCentersTitle}>Send feedback</Text>
+                        </View>
+                        <Pressable accessibilityRole="button" accessibilityLabel="Close feedback form" hitSlop={10} onPress={() => setIsFeedbackOpen(false)}>
+                          <X color={colors.muted} size={20} />
+                        </Pressable>
+                      </View>
+                      <FeedbackForm context={`Signed-in ${user.role}`} initialEmail={user.email} />
+                    </View>
+                  ) : (
+                    <Pressable accessibilityRole="button" onPress={() => setIsFeedbackOpen(true)} style={styles.manageCentersButton}>
+                      <MessageSquare color={colors.forest} size={17} />
+                      <View style={styles.manageCentersCopy}>
+                        <Text style={styles.manageCentersTitle}>Send feedback</Text>
+                        <Text style={styles.manageCentersSubtitle}>Share a suggestion or report a problem</Text>
+                      </View>
+                      <ArrowRight color={colors.muted} size={16} />
+                    </Pressable>
+                  )}
+
                   <Pressable accessibilityRole="button" disabled={isSigningOut || isLiveSessionLoading} onPress={() => void handleSignOut()} style={styles.signOutButton}>
                     {isSigningOut || isLiveSessionLoading ? <ActivityIndicator color={colors.error} /> : <LogOut color={colors.error} size={17} />}
                     <Text style={styles.signOutLabel}>{isLiveSessionLoading ? 'Preparing sign out…' : 'Sign out'}</Text>
@@ -232,13 +259,16 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
                     <Text style={styles.signedOutTitle}>Signed out</Text>
                     <Text style={styles.signedOutBody}>Songs and public presentations are available without an account. Sign in to see your center’s singers, pitches, and access status.</Text>
                   </View>
+                  <View onLayout={(event) => { signInOffsetY.current = event.nativeEvent.layout.y; }}>
                   <OtpSignInPanel
-                    description="Sign in with the email address connected to your Sai center account."
+                    onFormLayout={(y) => scrollRef.current?.scrollTo({ y: Math.max(0, signInOffsetY.current + y - 12), animated: true })}
+                    description=""
                     onSignedIn={(signedInUser) => {
                       setUser(signedInUser);
                       setLogoutError(null);
                     }}
                   />
+                  </View>
                 </>
               )}
             </ScrollView>
@@ -265,7 +295,6 @@ const styles = StyleSheet.create({
   drawer: { height: '100%', maxWidth: 420, backgroundColor: colors.paper, shadowColor: '#000000', shadowOffset: { width: -6, height: 0 }, shadowOpacity: 0.18, shadowRadius: 20, elevation: 14 },
   safeArea: { flex: 1 },
   drawerHeader: { minHeight: 76, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.line },
-  drawerEyebrow: { color: colors.saffron, fontSize: 9, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
   drawerTitle: { color: colors.ink, fontFamily: 'Georgia', fontSize: 22 },
   drawerScroll: { flex: 1 },
   drawerContent: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 28 },
@@ -292,6 +321,9 @@ const styles = StyleSheet.create({
   signOutLabel: { color: colors.error, fontSize: 13, fontWeight: '600' },
   errorText: { color: colors.error, fontSize: 12, textAlign: 'center', marginTop: 11 },
   manageCentersButton: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, marginTop: 14, borderWidth: 1, borderColor: colors.line, borderRadius: 8, backgroundColor: colors.surface },
+  feedbackBox: { marginTop: 14, padding: 14, borderWidth: 1, borderColor: colors.line, borderRadius: 8, backgroundColor: colors.surface },
+  feedbackHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  sectionTitleRowInline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   manageCentersCopy: { flex: 1 },
   manageCentersTitle: { color: colors.ink, fontSize: 13, fontWeight: '700' },
   manageCentersSubtitle: { color: colors.muted, fontSize: 10, marginTop: 4 },

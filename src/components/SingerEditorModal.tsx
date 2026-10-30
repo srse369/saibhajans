@@ -77,7 +77,6 @@ export function SingerEditorModal({ singer, user, centers, onClose, onSubmit }: 
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>{isAdmin ? 'ADMIN' : 'CENTER EDITOR'}</Text>
               <Text style={styles.title}>{singer ? 'Edit singer' : 'Add singer'}</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}>
@@ -136,7 +135,6 @@ const styles = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFill },
   sheet: { maxHeight: '92%', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 26, backgroundColor: colors.paper, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  eyebrow: { color: colors.saffron, fontSize: 9, fontWeight: '700', letterSpacing: 1.3, marginBottom: 4 },
   title: { color: colors.ink, fontFamily: 'Georgia', fontSize: 21 },
   closeButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: colors.surface },
   fieldLabel: { color: colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1, marginTop: 12, marginBottom: 6 },

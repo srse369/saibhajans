@@ -103,7 +103,6 @@ export function PitchEditorModal({ visible, pitch, scope, user, songs, singers, 
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>{isEditing ? 'PITCH ASSIGNMENT' : scope === 'all' ? 'ALL PITCHES' : 'MY PITCHES'}</Text>
               <Text style={styles.title}>{pickerMode ? `Select ${pickerMode}` : isEditing ? 'Update pitch' : 'Add pitch'}</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel={pickerMode ? 'Back to pitch form' : 'Close'} onPress={() => pickerMode ? setPickerMode(null) : onClose()} style={styles.closeButton}>
@@ -240,7 +239,6 @@ const styles = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFill },
   sheet: { maxHeight: '88%', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 24, backgroundColor: colors.paper, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  eyebrow: { color: colors.saffron, fontSize: 9, fontWeight: '700', letterSpacing: 1.3, marginBottom: 4 },
   title: { color: colors.ink, fontFamily: 'Georgia', fontSize: 21 },
   closeButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: colors.surface },
   searchBox: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 7, backgroundColor: colors.surface },
