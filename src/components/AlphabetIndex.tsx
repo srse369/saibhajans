@@ -133,8 +133,8 @@ export const alphabetIndexStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   indexRail: { position: 'absolute', top: 6, bottom: 6, right: 0, width: 24, alignItems: 'center', justifyContent: 'space-between' },
-  indexLetter: { color: colors.forest, fontSize: 10, fontWeight: '700', textAlign: 'center' },
-  indexLetterDisabled: { color: colors.muted, opacity: 0.4 },
+  indexLetter: { color: '#8A8F8C', fontSize: 10, fontWeight: '700', textAlign: 'center' },
+  indexLetterDisabled: { color: '#D2D5D3' },
   indexLetterActive: { color: colors.saffron },
   indexBubble: { position: 'absolute', top: '50%', right: 40, marginTop: -28, width: 56, height: 56, borderRadius: 12, backgroundColor: colors.forest, alignItems: 'center', justifyContent: 'center', opacity: 0.92 },
   indexBubbleLabel: { color: '#E6C08B', fontSize: 28, fontWeight: '700' },

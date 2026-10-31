@@ -32,10 +32,11 @@ export function OtpSignInPanel({ description, onSignedIn, onFormLayout }: OtpSig
 
   useEffect(() => {
     if (activePanel) {
+      collapse.setValue(1);
       slide.setValue(0);
       Animated.timing(slide, { toValue: 1, duration: 250, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     }
-  }, [activePanel, slide]);
+  }, [activePanel, slide, collapse]);
 
   function closePanel() {
     setReviewMode(false);
@@ -52,7 +53,6 @@ export function OtpSignInPanel({ description, onSignedIn, onFormLayout }: OtpSig
     Animated.timing(collapse, { toValue: 0, duration: 240, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start(() => {
       closePanel();
       setIsClosing(false);
-      collapse.setValue(1);
     });
   }
 
@@ -131,6 +131,7 @@ export function OtpSignInPanel({ description, onSignedIn, onFormLayout }: OtpSig
   ];
 
   const formContent = (
+    <Animated.View style={{ opacity: collapse.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 1, 1] }) }}>
     <Animated.View style={{ transform: [{ translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [panelWidth, 0] }) }] }}>
             <View style={styles.formHeader}>
               <Text style={styles.formTitle}>
@@ -217,6 +218,7 @@ export function OtpSignInPanel({ description, onSignedIn, onFormLayout }: OtpSig
               {error && activePanel !== null ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
             </View>
           </Animated.View>
+    </Animated.View>
   );
 
   return (

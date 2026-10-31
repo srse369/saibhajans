@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ArrowRight, ChevronDown, Layers3, Maximize2, Minimize2, X, ZoomIn, ZoomOut } from 'lucide-react-native';
 import { NavigationBar } from 'expo-navigation-bar';
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Image,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -320,6 +321,20 @@ export default function SessionPresentationScreen() {
     if (Platform.OS === 'android') NavigationBar.setHidden(false);
   }, []);
 
+  const deckLength = useRef(0);
+  useEffect(() => {
+    deckLength.current = deck.length;
+  });
+
+  const [swipeResponder] = useState(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dx) > 20 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: (_, gesture) => {
+      if (Math.abs(gesture.dx) < 50) return;
+      setIndex((current) => (gesture.dx < 0 ? Math.min(deckLength.current - 1, current + 1) : Math.max(0, current - 1)));
+    },
+  }));
+
   const isPresentationLoading = id === 'live' ? isLiveSessionLoading : isLoadingSession || session?.id !== id;
   if (isPresentationLoading || !activeSession) {
     return (
@@ -396,6 +411,7 @@ export default function SessionPresentationScreen() {
       </View>
       </> : null}
       <View
+        {...swipeResponder.panHandlers}
         style={styles.stageArea}
         onLayout={(event) => setStageSize({
           width: event.nativeEvent.layout.width,

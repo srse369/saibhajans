@@ -150,9 +150,10 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
           <Animated.View style={[styles.drawer, { width: drawerWidth, transform: [{ translateX }] }]}>
           <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
             <View style={styles.drawerHeader}>
-              <View>
-                <Text style={styles.drawerTitle}>Your profile</Text>
-              </View>
+              <Text style={styles.drawerTitle}>Your profile</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close profile drawer" onPress={closeDrawer} style={styles.closeButton}>
+                <X color={colors.white} size={19} strokeWidth={1.8} />
+              </Pressable>
             </View>
             <ScrollView ref={scrollRef} style={styles.drawerScroll} contentContainerStyle={styles.drawerContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {user ? (
@@ -272,11 +273,6 @@ function ProfileDrawer({ visible, onClose }: ProfileDrawerProps) {
                 </>
               )}
             </ScrollView>
-            <View style={styles.drawerFooter}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Close profile drawer" onPress={closeDrawer} style={styles.closeButton}>
-                <X color={colors.white} size={20} strokeWidth={1.8} />
-              </Pressable>
-            </View>
           </SafeAreaView>
         </Animated.View>
       </View>
@@ -294,12 +290,11 @@ const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFill },
   drawer: { height: '100%', maxWidth: 420, backgroundColor: colors.paper, shadowColor: '#000000', shadowOffset: { width: -6, height: 0 }, shadowOpacity: 0.18, shadowRadius: 20, elevation: 14 },
   safeArea: { flex: 1 },
-  drawerHeader: { minHeight: 76, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.line },
+  drawerHeader: { minHeight: 48, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.line },
   drawerTitle: { color: colors.ink, fontFamily: 'Georgia', fontSize: 22 },
   drawerScroll: { flex: 1 },
   drawerContent: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 28 },
-  drawerFooter: { minHeight: 72, borderTopWidth: 1, borderTopColor: colors.line, paddingHorizontal: 20, alignItems: 'flex-end', justifyContent: 'center' },
-  closeButton: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.forest },
+  closeButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#426756' },
   identityCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 8, alignItems: 'center', padding: 20 },
   avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.sage, alignItems: 'center', justifyContent: 'center', marginBottom: 11 },
   avatarText: { color: colors.forest, fontFamily: 'Georgia', fontSize: 25 },

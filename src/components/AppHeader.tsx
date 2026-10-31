@@ -25,12 +25,20 @@ export function AppHeader() {
       <View style={styles.bar}>
         <View style={styles.brand}>
           <Image
+            accessibilityLabel="Sri Sathya Sai Baba"
+            source={require('../../assets/sai.webp')}
+            resizeMode="cover"
+            style={styles.portrait}
+          />
+          <Image
             accessibilityLabel="Sai values logo"
             source={require('../../assets/sai-values-logo-transparent.png')}
             resizeMode="contain"
             style={styles.logo}
           />
-          <Text numberOfLines={1} style={styles.title}>Sri Sathya Sai Bhajans</Text>
+        </View>
+        <View pointerEvents="none" style={styles.titleWrap}>
+          <Text adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={1} style={styles.title}>Sri Sathya Sai Bhajans</Text>
         </View>
         <View style={styles.actions}>
           <Pressable
@@ -54,8 +62,10 @@ const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.forest },
   bar: { minHeight: 48, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
-  logo: { width: 34, height: 34, marginRight: 10 },
-  title: { color: colors.white, fontFamily: 'Georgia', fontSize: 18, flexShrink: 1 },
+  portrait: { width: 38, height: 38, borderRadius: 19, marginRight: 8 },
+  logo: { width: 38, height: 38 },
+  titleWrap: { position: 'absolute', left: 110, right: 110, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  title: { color: colors.white, fontSize: 15, fontWeight: '600', textAlign: 'center' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 12 },
   actionButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#426756', alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.72 },
